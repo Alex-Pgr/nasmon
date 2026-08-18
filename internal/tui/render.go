@@ -466,7 +466,7 @@ func (r Renderer) renderLandscape(s model.Snapshot, w int) string {
 	system := []string{
 		fmt.Sprintf(" %sCPU%s  %s%-5s%s  %s%-4s%s%s[%s]%s", white, reset, tempColor(s.CPUTempC), temp(s.CPUTempC), reset, pctColor(s.CPUUsage, "cpu"), fmt.Sprintf("%d%%", s.CPUUsage), reset, gray, bar(s.CPUUsage, landscapeBW), reset),
 		fmt.Sprintf(" %sGPU%s  %s%-5s%s  %sVCN%s %s%s%s", white, reset, lightGray, temp(s.GPUTempC), reset, white, reset, vcnColor, s.GPUVCN, reset),
-		fmt.Sprintf(" %sRAM%s       %s%-4s%s%s[%s]%s %s%s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray, bar(s.MemPercent, landscapeBW), reset, gray, ramTail, reset),
+		fmt.Sprintf(" %sRAM%s         %s%-4s%s%s[%s]%s %s%s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray, bar(s.MemPercent, landscapeBW), reset, gray, ramTail, reset),
 		fmt.Sprintf(" %sLoad%s %s%s%s %s(%s, %s)%s", white, reset, lightGray, s.Load1, reset, gray, s.Load5, s.Load15, reset),
 		fmt.Sprintf(" %sNet%s  %s%s%s", white, reset, blue, netLabel, reset),
 		fmt.Sprintf(" %sTraffic%s%s%s", white, reset, gray, strings.TrimPrefix(traffic, "Traffic")+reset),
