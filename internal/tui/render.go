@@ -312,17 +312,82 @@ func boxTop(w int, title string) string {
 	return prefix + rep("─", remain) + "┐"
 }
 
+func visibleRunes(s string) int {
+	n := 0
+	for i := 0; i < len(s); {
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
+			i += 2
+			for i < len(s) {
+				c := s[i]
+				i++
+				if c >= '@' && c <= '~' {
+					break
+				}
+			}
+			continue
+		}
+		_, size := utf8.DecodeRuneInString(s[i:])
+		if size == 0 {
+			break
+		}
+		n++
+		i += size
+	}
+	return n
+}
+
+func truncANSI(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	if visibleRunes(s) <= n {
+		return s
+	}
+	if n == 1 {
+		return "…"
+	}
+
+	var b strings.Builder
+	visible := 0
+	limit := n - 1
+	for i := 0; i < len(s) && visible < limit; {
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
+			start := i
+			i += 2
+			for i < len(s) {
+				c := s[i]
+				i++
+				if c >= '@' && c <= '~' {
+					break
+				}
+			}
+			b.WriteString(s[start:i])
+			continue
+		}
+		rn, size := utf8.DecodeRuneInString(s[i:])
+		if size == 0 {
+			break
+		}
+		b.WriteRune(rn)
+		visible++
+		i += size
+	}
+	b.WriteRune('…')
+	b.WriteString(reset)
+	return b.String()
+}
+
 func boxLine(w int, content string) string {
 	if w < 2 {
-		return trunc(content, w)
+		return truncANSI(content, w)
 	}
 	inner := w - 2
-	content = trunc(content, inner)
-	pad := inner - utf8.RuneCountInString(content)
+	content = truncANSI(content, inner)
+	pad := inner - visibleRunes(content)
 	if pad < 0 {
 		pad = 0
 	}
-	return "│" + content + rep(" ", pad) + "│"
+	return "│" + content + reset + white + rep(" ", pad) + "│"
 }
 
 func boxBottom(w int) string {
@@ -391,19 +456,29 @@ func (r Renderer) renderLandscape(s model.Snapshot, w int) string {
 	if s.IP != "" {
 		netLabel = s.IP
 	}
+	vcnColor := gray
+	if s.GPUVCN == "ACTIVE" {
+		vcnColor = green
+	}
 
 	system := []string{
-		fmt.Sprintf(" CPU  %-5s  %d%%", temp(s.CPUTempC), s.CPUUsage),
-		fmt.Sprintf(" GPU  %-5s  VCN %s", temp(s.GPUTempC), s.GPUVCN),
-		fmt.Sprintf(" RAM          %d%%  %s/%sG", s.MemPercent, gib(s.MemUsedBytes), gib(s.MemTotalBytes)),
-		fmt.Sprintf(" Load %s (%s, %s)", s.Load1, s.Load5, s.Load15),
-		fmt.Sprintf(" Net  %s", netLabel),
-		" " + traffic,
-		" " + dio,
+		fmt.Sprintf(" %sCPU%s  %s%-5s%s  %s%d%%%s", white, reset, tempColor(s.CPUTempC), temp(s.CPUTempC), reset, pctColor(s.CPUUsage, "cpu"), s.CPUUsage, reset),
+		fmt.Sprintf(" %sGPU%s  %s%-5s%s  %sVCN%s %s%s%s", white, reset, lightGray, temp(s.GPUTempC), reset, white, reset, vcnColor, s.GPUVCN, reset),
+		fmt.Sprintf(" %sRAM%s          %s%d%%%s  %s%s/%sG%s", white, reset, pctColor(s.MemPercent, "mem"), s.MemPercent, reset, gray, gib(s.MemUsedBytes), gib(s.MemTotalBytes), reset),
+		fmt.Sprintf(" %sLoad%s %s%s%s %s(%s, %s)%s", white, reset, lightGray, s.Load1, reset, gray, s.Load5, s.Load15, reset),
+		fmt.Sprintf(" %sNet%s  %s%s%s", white, reset, blue, netLabel, reset),
+		fmt.Sprintf(" %sTraffic%s%s%s", white, reset, gray, strings.TrimPrefix(traffic, "Traffic")+reset),
+		fmt.Sprintf(" %sDisk%s%s%s", white, reset, gray, strings.TrimPrefix(dio, "Disk")+reset),
 	}
 
 	docker := make([]string, 0, len(s.Containers))
 	for _, c := range s.Containers {
+		color := blue
+		if c.Health == "healthy" {
+			color = green
+		} else if c.State != "running" {
+			color = yellow
+		}
 		status := c.Status
 		if c.Health != "" && !strings.Contains(status, "("+c.Health+")") {
 			status += " (" + c.Health + ")"
@@ -411,7 +486,7 @@ func (r Renderer) renderLandscape(s model.Snapshot, w int) string {
 		if c.Restarts > 0 {
 			status += fmt.Sprintf(" R:%d", c.Restarts)
 		}
-		docker = append(docker, fmt.Sprintf(" %s: %s", c.Name, status))
+		docker = append(docker, fmt.Sprintf(" %s%s%s: %s%s%s", lightGray, c.Name, reset, color, status, reset))
 	}
 
 	upperRows := len(system)
@@ -428,23 +503,26 @@ func (r Renderer) renderLandscape(s model.Snapshot, w int) string {
 
 	disks := make([]string, 0, len(s.DiskUsage))
 	for _, d := range s.DiskUsage {
-		disks = append(disks, fmt.Sprintf(" %-12s %s/%s %d%%", d.Path, humanBytes(d.UsedBytes), humanBytes(d.TotalBytes), d.Percent))
+		disks = append(disks, fmt.Sprintf(" %s%-12s%s %s%s/%s%s %s%d%%%s", lightGray, d.Path, reset, white, humanBytes(d.UsedBytes), humanBytes(d.TotalBytes), reset, pctColor(d.Percent, "disk"), d.Percent, reset))
 	}
 
 	health := []string{}
 	if s.FailedUnits == 0 {
-		health = append(health, " systemd OK (0 failed)")
+		health = append(health, fmt.Sprintf(" %ssystemd OK (0 failed)%s", green, reset))
 	} else {
-		health = append(health, fmt.Sprintf(" systemd WARNING (%d failed)", s.FailedUnits))
+		health = append(health, fmt.Sprintf(" %ssystemd WARNING (%d failed)%s", yellow, s.FailedUnits, reset))
 	}
 	for _, h := range s.DiskHealth {
 		state := "SMART " + h.Health
+		stateColor := yellow
 		if h.Sleeping {
 			state = "SLEEP"
+			stateColor = blue
 		} else if h.Health == "OK" && h.Reallocated == 0 && h.Pending == 0 && h.Uncorrect == 0 {
 			state = "SMART OK"
+			stateColor = green
 		}
-		health = append(health, fmt.Sprintf(" /dev/%s %s %s R:%d P:%d U:%d", h.Device, h.Temperature, state, h.Reallocated, h.Pending, h.Uncorrect))
+		health = append(health, fmt.Sprintf(" %s/dev/%s%s %s%s %s%s%s %sR:%d P:%d U:%d%s", lightGray, h.Device, reset, white, h.Temperature, stateColor, state, reset, gray, h.Reallocated, h.Pending, h.Uncorrect, reset))
 	}
 
 	lowerRows := len(disks)
