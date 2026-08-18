@@ -1,3 +1,3 @@
-module github.com/Alex-Pgr/nas_monitoring
+module nasmon
 
-go 1.22
+go 1.23

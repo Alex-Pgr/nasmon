@@ -1,48 +1,74 @@
-# NAS Health Monitor
+# nasmon
 
-A lightweight terminal dashboard for a Linux home NAS, rewritten in Go from the earlier Bash monitor.
+Go rewrite of the Bash `check_health.sh` NAS monitor.
 
-## Current MVP
+## Architecture
 
-- CPU usage and iowait from `/proc/stat`
-- CPU temperature from sysfs/hwmon
-- RAM and swap from `/proc/meminfo`
-- load average and uptime
-- interface/IP detection and RX/TX rate
-- disk usage for `/`, `/mnt/ssd`, `/mnt/hdd`
-- Docker container status
-- AMD GPU temperature + VCN state through the existing `nas-gpu-info` helper
-- ANSI terminal UI that adapts to terminal width on every refresh
-- graceful Ctrl+C/SIGTERM shutdown
+- collectors run independently at their own intervals;
+- collectors update one concurrency-safe snapshot;
+- renderer reads the snapshot only and never performs I/O;
+- resize uses `SIGWINCH` + `ioctl`, so there is no 1-second `stty` polling;
+- CPU/RAM/load/network/disk I/O/temperature are read directly from `/proc`, `/sys` and Go's network API;
+- disk usage uses `statfs`, not `df`;
+- Docker uses `/var/run/docker.sock`, not the `docker` CLI;
+- only `smartctl`, `systemctl`, and the existing `nas-gpu-info` helper still spawn external processes.
 
-The defaults match the current NAS setup (`enp1s0f1`, `/mnt/hdd`) but can be overridden.
+This structure is intentionally ready for future views/tabs: collectors and model do not depend on the renderer.
 
 ## Build
 
 ```bash
-go build -o nas-monitor .
+cd nasmon-go
+CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o nasmon ./cmd/nasmon
 ```
 
-## Run
+Run:
 
 ```bash
-./nas-monitor
+./nasmon
 ```
 
-Options:
+or set the main refresh interval:
 
 ```bash
-./nas-monitor -interval 5s -interface enp1s0f1 -storage /mnt/hdd
+./nasmon 5
 ```
 
-Environment variables:
+## Environment variables
 
-- `NAS_INTERFACE` — default interface
-- `STORAGE_PATH` — main storage path
-- `GPU_INFO_HELPER` — path to the AMD GPU helper, default `/usr/local/sbin/nas-gpu-info`
+The existing names are preserved where practical:
 
-For GPU metrics the helper must be executable and allowed through passwordless `sudo -n`, as in the Bash version.
+```text
+NAS_INTERFACE=enp1s0f1
+GPU_INFO_HELPER=/usr/local/bin/nas-gpu-info
+STORAGE_PATH=/mnt/hdd
+GPU_INTERVAL=10
+DOCKER_INTERVAL=30
+DISK_LAYOUT_INTERVAL=15
+DISK_TEMP_INTERVAL=30
+SMART_INTERVAL=600
+SYSTEMD_INTERVAL=30
+IP_INTERVAL=60
+NAS_FORCE_COLS=...
+NAS_FORCE_ROWS=...
+NAS_MONITOR_ONESHOT=1
+```
 
-## Next steps
+`MAIN_INTERVAL` defaults to 5 seconds, but the positional CLI argument has priority.
 
-This is the first Go baseline. The next pass should restore the richer v16.5 layout/health blocks (SMART/systemd/storage analysis), then split collectors and rendering into packages and add tests.
+## Permissions
+
+The current sudoers rule for `/usr/local/bin/nas-gpu-info` can stay as-is.
+
+SMART behavior retains `smartctl -n standby,0`, so a sleeping HDD should not be spun up by the monitor.
+
+Docker is read through `/var/run/docker.sock`. The user running `nasmon` must have access to that socket (normally membership in the `docker` group, which is already required for unprivileged `docker ps`).
+
+## Suggested installation
+
+```bash
+sudo install -m 0755 nasmon /usr/local/bin/nasmon
+nasmon
+```
+
+Keep the Bash version alongside it during the first few days so values can be compared before replacing the old command permanently.

@@ -1,0 +1,15 @@
+[Unit]
+Description=NAS Monitor TUI
+After=network.target docker.service
+
+# A TUI is normally best launched interactively over SSH, not as a service.
+# This file is only a template if output is later redirected to a tty.
+
+[Service]
+Type=simple
+User=cthulhu
+ExecStart=/usr/local/bin/nasmon
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
