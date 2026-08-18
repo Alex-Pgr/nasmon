@@ -227,7 +227,7 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int) string {
 		vcnColor = green
 	}
 	addn(fmt.Sprintf("%s│ GPU:%s %s%-5s%s  %sVCN:%s %s%-6s%s", white, reset, lightGray, temp(s.GPUTempC), reset, white, reset, vcnColor, s.GPUVCN, reset))
-	addn(fmt.Sprintf("%s│ RAM:%s       %s%-4s%s%s[%s] %s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray, bar(s.MemPercent, bw), ramTail, reset))
+	addn(fmt.Sprintf("%s│ RAM:%s        %s%-4s%s%s[%s] %s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray, bar(s.MemPercent, bw), ramTail, reset))
 	addn(fmt.Sprintf("%s│ IOwait:%s %s%d%%%s  %sSwap:%s %s%d%%%s %s%s/%s GiB%s", white, reset, pctColor(s.IOWait, "io"), s.IOWait, reset, white, reset, pctColor(s.SwapPercent, "mem"), s.SwapPercent, reset, gray, gib(s.SwapUsedBytes), gib(s.SwapTotalBytes), reset))
 	netLabel := "No IP"
 	if s.IP != "" {
