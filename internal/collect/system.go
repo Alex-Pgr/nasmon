@@ -92,6 +92,35 @@ func (c *CPUCollector) Collect(store *model.Store) {
 	})
 }
 
+func collectZRAMSwap() (total, used uint64) {
+	f, err := os.Open("/proc/swaps")
+	if err != nil {
+		return 0, 0
+	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	first := true
+	for sc.Scan() {
+		if first {
+			first = false
+			continue
+		}
+		fields := strings.Fields(sc.Text())
+		if len(fields) < 4 || !strings.HasPrefix(filepath.Base(fields[0]), "zram") {
+			continue
+		}
+		sizeKiB, errSize := strconv.ParseUint(fields[2], 10, 64)
+		usedKiB, errUsed := strconv.ParseUint(fields[3], 10, 64)
+		if errSize != nil || errUsed != nil {
+			continue
+		}
+		total += sizeKiB * 1024
+		used += usedKiB * 1024
+	}
+	return total, used
+}
+
 func CollectMemory(store *model.Store) {
 	f, err := os.Open("/proc/meminfo")
 	if err != nil {
@@ -128,8 +157,14 @@ func CollectMemory(store *model.Store) {
 	if st > 0 {
 		sp = int(su * 100 / st)
 	}
+	zt, zu := collectZRAMSwap()
+	zp := 0
+	if zt > 0 {
+		zp = int(zu * 100 / zt)
+	}
 	store.Update(func(s *model.Snapshot) {
 		s.MemTotalBytes, s.MemUsedBytes, s.MemPercent = mt, mu, mp
+		s.ZRAMTotalBytes, s.ZRAMUsedBytes, s.ZRAMPercent = zt, zu, zp
 		s.SwapTotalBytes, s.SwapUsedBytes, s.SwapPercent = st, su, sp
 	})
 }

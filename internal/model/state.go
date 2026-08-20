@@ -49,6 +49,9 @@ type Snapshot struct {
 	MemUsedBytes   uint64
 	MemTotalBytes  uint64
 	MemPercent     int
+	ZRAMUsedBytes  uint64
+	ZRAMTotalBytes uint64
+	ZRAMPercent    int
 	SwapUsedBytes  uint64
 	SwapTotalBytes uint64
 	SwapPercent    int

@@ -228,7 +228,11 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int) string {
 	}
 	addn(fmt.Sprintf("%s│ GPU:%s %s%-5s%s  %sVCN:%s %s%-6s%s", white, reset, lightGray, temp(s.GPUTempC), reset, white, reset, vcnColor, s.GPUVCN, reset))
 	addn(fmt.Sprintf("%s│ RAM:%s        %s%-4s%s%s[%s] %s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray, bar(s.MemPercent, bw), ramTail, reset))
-	addn(fmt.Sprintf("%s│ IOwait:%s %s%d%%%s  %sSwap:%s %s%d%%%s %s%s/%s GiB%s", white, reset, pctColor(s.IOWait, "io"), s.IOWait, reset, white, reset, pctColor(s.SwapPercent, "mem"), s.SwapPercent, reset, gray, gib(s.SwapUsedBytes), gib(s.SwapTotalBytes), reset))
+	if s.ZRAMTotalBytes > 0 {
+		zramTail := fmt.Sprintf("%s/%s GiB", gib(s.ZRAMUsedBytes), gib(s.ZRAMTotalBytes))
+		addn(fmt.Sprintf("%s│ ZRAM:%s       %s%-4s%s%s[%s] %s%s", white, reset, pctColor(s.ZRAMPercent, "mem"), fmt.Sprintf("%d%%", s.ZRAMPercent), reset, gray, bar(s.ZRAMPercent, bw), zramTail, reset))
+	}
+	addn(fmt.Sprintf("%s│ Swap:%s %s%d%%%s %s%s/%s GiB%s  %sIOwait:%s %s%d%%%s", white, reset, pctColor(s.SwapPercent, "mem"), s.SwapPercent, reset, gray, gib(s.SwapUsedBytes), gib(s.SwapTotalBytes), reset, white, reset, pctColor(s.IOWait, "io"), s.IOWait, reset))
 	netLabel := "No IP"
 	if s.IP != "" {
 		netLabel = fmt.Sprintf("Ethernet (%s)", s.IP)
