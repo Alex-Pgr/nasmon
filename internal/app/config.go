@@ -13,6 +13,7 @@ type Config struct {
 	DockerInterval   time.Duration
 	DiskInterval     time.Duration
 	DiskTempInterval time.Duration
+	DiskQuietWindow  time.Duration
 	SMARTInterval    time.Duration
 	SystemdInterval  time.Duration
 	IPInterval       time.Duration
@@ -64,8 +65,9 @@ func DefaultConfig() Config {
 		GPUInterval:      envDuration("GPU_INTERVAL", 10*time.Second),
 		DockerInterval:   envDuration("DOCKER_INTERVAL", 30*time.Second),
 		DiskInterval:     envDuration("DISK_LAYOUT_INTERVAL", 15*time.Second),
-		DiskTempInterval: envDuration("DISK_TEMP_INTERVAL", 30*time.Second),
-		SMARTInterval:    envDuration("SMART_INTERVAL", 10*time.Minute),
+		DiskTempInterval: envDuration("DISK_TEMP_INTERVAL", 15*time.Minute),
+		DiskQuietWindow:  envDuration("DISK_QUIET_WINDOW", 5*time.Minute),
+		SMARTInterval:    envDuration("SMART_INTERVAL", time.Hour),
 		SystemdInterval:  envDuration("SYSTEMD_INTERVAL", 30*time.Second),
 		IPInterval:       envDuration("IP_INTERVAL", 60*time.Second),
 		Interface:        iface,

@@ -1,12 +1,106 @@
 package collect
 
 import (
+	"bufio"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"nasmon/internal/model"
 )
+
+type diskActivityState struct {
+	readSectors  uint64
+	writeSectors uint64
+	lastActivity time.Time
+	initialized  bool
+}
+
+var (
+	diskActivityMu sync.Mutex
+	diskActivity   = map[string]diskActivityState{}
+)
+
+func RefreshDiskActivity(devs []string) {
+	if len(devs) == 0 {
+		return
+	}
+	wanted := map[string]bool{}
+	for _, d := range devs {
+		wanted[d] = true
+	}
+
+	f, err := os.Open("/proc/diskstats")
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	type counters struct{ read, write uint64 }
+	current := map[string]counters{}
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		fields := strings.Fields(sc.Text())
+		if len(fields) < 10 || !wanted[fields[2]] {
+			continue
+		}
+		r, errR := strconv.ParseUint(fields[5], 10, 64)
+		w, errW := strconv.ParseUint(fields[9], 10, 64)
+		if errR != nil || errW != nil {
+			continue
+		}
+		current[fields[2]] = counters{read: r, write: w}
+	}
+
+	now := time.Now()
+	diskActivityMu.Lock()
+	defer diskActivityMu.Unlock()
+	for _, d := range devs {
+		c, ok := current[d]
+		if !ok {
+			continue
+		}
+		st := diskActivity[d]
+		if !st.initialized {
+			st.initialized = true
+			st.lastActivity = now
+		} else if c.read != st.readSectors || c.write != st.writeSectors {
+			st.lastActivity = now
+		}
+		st.readSectors = c.read
+		st.writeSectors = c.write
+		diskActivity[d] = st
+	}
+	for d := range diskActivity {
+		if !wanted[d] {
+			delete(diskActivity, d)
+		}
+	}
+}
+
+func isRotational(dev string) bool {
+	b, err := os.ReadFile("/sys/class/block/" + dev + "/queue/rotational")
+	if err != nil {
+		return true
+	}
+	return strings.TrimSpace(string(b)) != "0"
+}
+
+func shouldPollDisk(dev string, quietWindow time.Duration) bool {
+	if quietWindow <= 0 || !isRotational(dev) {
+		return true
+	}
+	diskActivityMu.Lock()
+	st, ok := diskActivity[dev]
+	diskActivityMu.Unlock()
+	if !ok || !st.initialized || st.lastActivity.IsZero() {
+		return true
+	}
+	return time.Since(st.lastActivity) < quietWindow
+}
 
 func smartctl(dev string, args ...string) (string, error) {
 	full := append(args, "/dev/"+dev)
@@ -37,16 +131,20 @@ func parseTemp(text string) string {
 	}
 	return "N/A"
 }
-func CollectDiskTemps(devs []string, store *model.Store) {
+func CollectDiskTemps(devs []string, quietWindow time.Duration, store *model.Store) {
 	snap := store.Snapshot()
 	m := map[string]model.DiskHealth{}
 	for _, h := range snap.DiskHealth {
 		m[h.Device] = h
 	}
 	for _, d := range devs {
-		txt, _ := smartctl(d, "-n", "standby,0", "-A")
 		h := m[d]
 		h.Device = d
+		if !shouldPollDisk(d, quietWindow) {
+			m[d] = h
+			continue
+		}
+		txt, _ := smartctl(d, "-n", "standby,0", "-A")
 		if sleeping(txt) {
 			h.Sleeping = true
 			h.Temperature = "SLEEP"
@@ -62,16 +160,20 @@ func CollectDiskTemps(devs []string, store *model.Store) {
 	}
 	store.Update(func(s *model.Snapshot) { s.DiskHealth = out })
 }
-func CollectSMART(devs []string, store *model.Store) {
+func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) {
 	snap := store.Snapshot()
 	m := map[string]model.DiskHealth{}
 	for _, h := range snap.DiskHealth {
 		m[h.Device] = h
 	}
 	for _, d := range devs {
-		txt, _ := smartctl(d, "-n", "standby,0", "-H", "-A")
 		h := m[d]
 		h.Device = d
+		if !shouldPollDisk(d, quietWindow) {
+			m[d] = h
+			continue
+		}
+		txt, _ := smartctl(d, "-n", "standby,0", "-H", "-A")
 		if sleeping(txt) {
 			h.Sleeping = true
 			if h.Health == "" {

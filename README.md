@@ -45,8 +45,9 @@ STORAGE_PATH=/mnt/hdd
 GPU_INTERVAL=10
 DOCKER_INTERVAL=30
 DISK_LAYOUT_INTERVAL=15
-DISK_TEMP_INTERVAL=30
-SMART_INTERVAL=600
+DISK_TEMP_INTERVAL=900
+DISK_QUIET_WINDOW=300
+SMART_INTERVAL=3600
 SYSTEMD_INTERVAL=30
 IP_INTERVAL=60
 NAS_FORCE_COLS=...
@@ -56,11 +57,13 @@ NAS_MONITOR_ONESHOT=1
 
 `MAIN_INTERVAL` defaults to 5 seconds, but the positional CLI argument has priority.
 
+`DISK_QUIET_WINDOW` is the amount of time, in seconds, after the last real block I/O before SMART/temperature polling is suppressed for rotational disks. SSDs are not gated by this quiet window. Disk activity is tracked from `/proc/diskstats`, so the activity check itself does not touch the drive.
+
 ## Permissions
 
 The current sudoers rule for `/usr/local/bin/nas-gpu-info` can stay as-is.
 
-SMART behavior retains `smartctl -n standby,0`, so a sleeping HDD should not be spun up by the monitor.
+SMART behavior retains `smartctl -n standby,0`, so a sleeping HDD should not be spun up by the monitor. In addition, rotational HDDs are no longer queried after the quiet window has elapsed, which avoids the monitor itself interfering with a configured spindown timer. By default HDD temperature polling is every 15 minutes and SMART health polling is every hour while the drive is recently active.
 
 Docker is read through `/var/run/docker.sock`. The user running `nasmon` must have access to that socket (normally membership in the `docker` group, which is already required for unprivileged `docker ps`).
 
