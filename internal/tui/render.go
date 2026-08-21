@@ -265,12 +265,14 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int) string {
 	addn(white + "┌── Health" + reset)
 	for _, h := range s.DiskHealth {
 		mark := yellow + "SMART " + h.Health + reset
-		if h.Sleeping {
-			mark = blue + "SLEEP" + reset
-		} else if h.Health == "OK" && h.Reallocated == 0 && h.Pending == 0 && h.Uncorrect == 0 {
+		if h.Health == "OK" && h.Reallocated == 0 && h.Pending == 0 && h.Uncorrect == 0 {
 			mark = green + "✓ SMART OK" + reset
 		}
-		addn(fmt.Sprintf("%s│ %s/dev/%s%s  %s  %s %sR:%d P:%d U:%d%s", white, lightGray, h.Device, reset, h.Temperature, mark, gray, h.Reallocated, h.Pending, h.Uncorrect, reset))
+		sleepMark := ""
+		if h.Sleeping {
+			sleepMark = " " + blue + "SLEEP" + reset
+		}
+		addn(fmt.Sprintf("%s│ %s/dev/%s%s  %s  %s %sR:%d P:%d U:%d%s%s", white, lightGray, h.Device, reset, h.Temperature, mark, gray, h.Reallocated, h.Pending, h.Uncorrect, reset, sleepMark))
 	}
 	addn(white + bottom(w) + reset)
 	addn("")
@@ -521,14 +523,15 @@ func (r Renderer) renderLandscape(s model.Snapshot, w int) string {
 	for _, h := range s.DiskHealth {
 		state := "SMART " + h.Health
 		stateColor := yellow
-		if h.Sleeping {
-			state = "SLEEP"
-			stateColor = blue
-		} else if h.Health == "OK" && h.Reallocated == 0 && h.Pending == 0 && h.Uncorrect == 0 {
+		if h.Health == "OK" && h.Reallocated == 0 && h.Pending == 0 && h.Uncorrect == 0 {
 			state = "SMART OK"
 			stateColor = green
 		}
-		health = append(health, fmt.Sprintf(" %s/dev/%s%s %s%s %s%s%s %sR:%d P:%d U:%d%s", lightGray, h.Device, reset, white, h.Temperature, stateColor, state, reset, gray, h.Reallocated, h.Pending, h.Uncorrect, reset))
+		sleepMark := ""
+		if h.Sleeping {
+			sleepMark = " " + blue + "SLEEP" + reset
+		}
+		health = append(health, fmt.Sprintf(" %s/dev/%s%s %s%s %s%s%s %sR:%d P:%d U:%d%s%s", lightGray, h.Device, reset, white, h.Temperature, stateColor, state, reset, gray, h.Reallocated, h.Pending, h.Uncorrect, reset, sleepMark))
 	}
 
 	lowerRows := len(disks)

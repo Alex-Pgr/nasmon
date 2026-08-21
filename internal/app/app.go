@@ -63,6 +63,7 @@ func (a *App) Bootstrap() {
 	collect.CollectGPU(a.Config.GPUHelper, a.Store)
 	collect.CollectDiskTemps(a.Disk.Devices(), a.Config.DiskQuietWindow, a.Store)
 	collect.CollectSMART(a.Disk.Devices(), a.Config.DiskQuietWindow, a.Store)
+	collect.CollectDiskPowerState(a.Disk.Devices(), a.Store)
 	collect.CollectDocker(a.Store)
 	collect.CollectSystemd(a.Store)
 }
@@ -81,7 +82,11 @@ func (a *App) Start(ctx context.Context) {
 	go periodic(ctx, a.Config.MainInterval, main)
 	go periodic(ctx, a.Config.IPInterval, func() { a.Net.CollectIP(a.Store); a.ping() })
 	go periodic(ctx, a.Config.GPUInterval, func() { collect.CollectGPU(a.Config.GPUHelper, a.Store); a.ping() })
-	go periodic(ctx, a.Config.DiskInterval, func() { a.Disk.CollectUsage(a.Store); a.ping() })
+	go periodic(ctx, a.Config.DiskInterval, func() {
+		a.Disk.CollectUsage(a.Store)
+		collect.CollectDiskPowerState(a.Disk.Devices(), a.Store)
+		a.ping()
+	})
 	go periodic(ctx, a.Config.DiskTempInterval, func() {
 		collect.CollectDiskTemps(a.Disk.Devices(), a.Config.DiskQuietWindow, a.Store)
 		a.ping()

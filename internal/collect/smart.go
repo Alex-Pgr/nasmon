@@ -114,6 +114,59 @@ func smartctl(dev string, args ...string) (string, error) {
 	}
 	return string(out), err
 }
+
+func diskPowerState(dev string) (bool, bool) {
+	args := []string{"-C", "/dev/" + dev}
+	out, err := exec.Command("hdparm", args...).CombinedOutput()
+	if err != nil {
+		low := strings.ToLower(string(out))
+		if strings.Contains(low, "permission denied") || strings.Contains(low, "operation not permitted") {
+			out, err = exec.Command("sudo", "-n", "hdparm", "-C", "/dev/"+dev).CombinedOutput()
+		}
+	}
+	if err != nil {
+		return false, false
+	}
+	low := strings.ToLower(string(out))
+	if strings.Contains(low, "standby") {
+		return true, true
+	}
+	if strings.Contains(low, "active/idle") || strings.Contains(low, "active") || strings.Contains(low, "idle") {
+		return false, true
+	}
+	return false, false
+}
+
+// CollectDiskPowerState uses ATA CHECK POWER MODE through hdparm -C. This does
+// not spin up a standby disk and is intentionally independent from SMART data,
+// so the last known health/temperature remain visible while the drive sleeps.
+func CollectDiskPowerState(devs []string, store *model.Store) {
+	snap := store.Snapshot()
+	m := map[string]model.DiskHealth{}
+	for _, h := range snap.DiskHealth {
+		m[h.Device] = h
+	}
+	for _, d := range devs {
+		h := m[d]
+		h.Device = d
+		if !isRotational(d) {
+			h.Sleeping = false
+			m[d] = h
+			continue
+		}
+		asleep, ok := diskPowerState(d)
+		if ok {
+			h.Sleeping = asleep
+		}
+		m[d] = h
+	}
+	out := make([]model.DiskHealth, 0, len(devs))
+	for _, d := range devs {
+		out = append(out, m[d])
+	}
+	store.Update(func(s *model.Snapshot) { s.DiskHealth = out })
+}
+
 func sleeping(text string) bool {
 	l := strings.ToLower(text)
 	return strings.Contains(l, "standby") || strings.Contains(l, "sleep mode") || strings.Contains(l, "low-power mode")
@@ -147,7 +200,9 @@ func CollectDiskTemps(devs []string, quietWindow time.Duration, store *model.Sto
 		txt, _ := smartctl(d, "-n", "standby,0", "-A")
 		if sleeping(txt) {
 			h.Sleeping = true
-			h.Temperature = "SLEEP"
+			if h.Temperature == "" {
+				h.Temperature = "N/A"
+			}
 		} else {
 			h.Sleeping = false
 			h.Temperature = parseTemp(txt)

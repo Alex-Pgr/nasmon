@@ -11,7 +11,7 @@ Go rewrite of the Bash `check_health.sh` NAS monitor.
 - CPU/RAM/load/network/disk I/O/temperature are read directly from `/proc`, `/sys` and Go's network API;
 - disk usage uses `statfs`, not `df`;
 - Docker uses `/var/run/docker.sock`, not the `docker` CLI;
-- only `smartctl`, `systemctl`, and the existing `nas-gpu-info` helper still spawn external processes.
+- only `smartctl`, `hdparm`, `systemctl`, and the existing `nas-gpu-info` helper still spawn external processes.
 
 This structure is intentionally ready for future views/tabs: collectors and model do not depend on the renderer.
 
@@ -64,6 +64,8 @@ NAS_MONITOR_ONESHOT=1
 The current sudoers rule for `/usr/local/bin/nas-gpu-info` can stay as-is.
 
 SMART behavior retains `smartctl -n standby,0`, so a sleeping HDD should not be spun up by the monitor. In addition, rotational HDDs are no longer queried after the quiet window has elapsed, which avoids the monitor itself interfering with a configured spindown timer. By default HDD temperature polling is every 15 minutes and SMART health polling is every hour while the drive is recently active.
+
+For rotational drives, `hdparm -C` is used on the normal disk-layout interval to query ATA power state without spinning the disk up. The last known temperature, SMART health, and R/P/U counters remain visible; a blue `SLEEP` suffix is added when the drive reports standby. If the user cannot issue the power-state ioctl directly, `nasmon` falls back to `sudo -n hdparm -C`.
 
 Docker is read through `/var/run/docker.sock`. The user running `nasmon` must have access to that socket (normally membership in the `docker` group, which is already required for unprivileged `docker ps`).
 
