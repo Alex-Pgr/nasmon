@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,10 +13,11 @@ import (
 )
 
 type dockerListItem struct {
-	ID     string   `json:"Id"`
-	Names  []string `json:"Names"`
-	State  string   `json:"State"`
-	Status string   `json:"Status"`
+	ID     string            `json:"Id"`
+	Names  []string          `json:"Names"`
+	State  string            `json:"State"`
+	Status string            `json:"Status"`
+	Labels map[string]string `json:"Labels"`
 }
 type dockerInspect struct {
 	RestartCount int `json:"RestartCount"`
@@ -47,7 +49,13 @@ func CollectDocker(store *model.Store) {
 	if json.NewDecoder(resp.Body).Decode(&items) != nil {
 		return
 	}
-	out := make([]model.Container, 0, len(items))
+
+	type collectedContainer struct {
+		container model.Container
+		group     string
+	}
+	collected := make([]collectedContainer, 0, len(items))
+
 	for _, it := range items {
 		name := ""
 		if len(it.Names) > 0 {
@@ -65,7 +73,27 @@ func CollectDocker(store *model.Store) {
 			}
 			r.Body.Close()
 		}
-		out = append(out, co)
+
+		group := it.Labels["com.docker.compose.project"]
+		if group == "" {
+			// Non-Compose containers still get a deterministic alphabetical order.
+			group = name
+		}
+		collected = append(collected, collectedContainer{container: co, group: group})
+	}
+
+	sort.SliceStable(collected, func(i, j int) bool {
+		gi := strings.ToLower(collected[i].group)
+		gj := strings.ToLower(collected[j].group)
+		if gi != gj {
+			return gi < gj
+		}
+		return strings.ToLower(collected[i].container.Name) < strings.ToLower(collected[j].container.Name)
+	})
+
+	out := make([]model.Container, 0, len(collected))
+	for _, item := range collected {
+		out = append(out, item.container)
 	}
 	store.Update(func(s *model.Snapshot) { s.Containers = out })
 }
