@@ -55,7 +55,7 @@ NAS_FORCE_ROWS=...
 NAS_MONITOR_ONESHOT=1
 ```
 
-`MAIN_INTERVAL` defaults to 5 seconds, but the positional CLI argument has priority.
+`MAIN_INTERVAL` defaults to 2 seconds, but the positional CLI argument has priority.
 
 `DISK_QUIET_WINDOW` is the amount of time, in seconds, after the last real block I/O before SMART/temperature polling is suppressed for rotational disks. SSDs are not gated by this quiet window. Disk activity is tracked from `/proc/diskstats`, so the activity check itself does not touch the drive.
 

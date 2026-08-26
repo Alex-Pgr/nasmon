@@ -61,7 +61,7 @@ func DefaultConfig() Config {
 	}
 
 	return Config{
-		MainInterval:     envDuration("MAIN_INTERVAL", 5*time.Second),
+		MainInterval:     envDuration("MAIN_INTERVAL", 2*time.Second),
 		GPUInterval:      envDuration("GPU_INTERVAL", 10*time.Second),
 		DockerInterval:   envDuration("DOCKER_INTERVAL", 30*time.Second),
 		DiskInterval:     envDuration("DISK_LAYOUT_INTERVAL", 15*time.Second),
