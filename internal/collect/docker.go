@@ -28,25 +28,34 @@ type dockerInspect struct {
 	} `json:"State"`
 }
 
-func dockerClient() *http.Client {
-	tr := &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "unix", "/var/run/docker.sock")
-	}}
+var dockerHTTPClient = newDockerClient()
+
+func newDockerClient() *http.Client {
+	tr := &http.Transport{
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "unix", "/var/run/docker.sock")
+		},
+		MaxIdleConns:        2,
+		MaxIdleConnsPerHost: 2,
+		IdleConnTimeout:     90 * time.Second,
+	}
 	return &http.Client{Transport: tr, Timeout: 4 * time.Second}
 }
 
 func CollectDocker(store *model.Store) {
-	c := dockerClient()
+	c := dockerHTTPClient
 	resp, err := c.Get("http://docker/containers/json?all=1")
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
+		resp.Body.Close()
 		return
 	}
 	var items []dockerListItem
-	if json.NewDecoder(resp.Body).Decode(&items) != nil {
+	decodeErr := json.NewDecoder(resp.Body).Decode(&items)
+	resp.Body.Close()
+	if decodeErr != nil {
 		return
 	}
 
