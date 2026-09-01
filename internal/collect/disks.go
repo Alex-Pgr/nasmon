@@ -122,6 +122,9 @@ func discoverNVMeBlockDevices() []string {
 // loop-backed filesystems such as snap squashfs images. Explicit configured
 // paths are still collected separately, preserving the previous behavior.
 func autoDiskMount(m mountInfo) bool {
+	if filepath.Clean(m.MountPoint) == "/boot/efi" {
+		return false
+	}
 	source := filepath.Clean(m.Source)
 	if !strings.HasPrefix(source, "/dev/") {
 		return false
