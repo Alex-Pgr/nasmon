@@ -181,6 +181,7 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 			healthDevices = append(healthDevices, dev)
 		}
 	}
+	sort.Strings(healthDevices)
 	d.mu.Lock()
 	d.devices = devices
 	d.healthDevices = healthDevices
