@@ -118,6 +118,47 @@ func discoverNVMeBlockDevices() []string {
 	return out
 }
 
+// autoDiskMount selects real block-device mounts while excluding pseudo and
+// loop-backed filesystems such as snap squashfs images. Explicit configured
+// paths are still collected separately, preserving the previous behavior.
+func autoDiskMount(m mountInfo) bool {
+	source := filepath.Clean(m.Source)
+	if !strings.HasPrefix(source, "/dev/") {
+		return false
+	}
+	dev := filepath.Base(source)
+	if strings.HasPrefix(dev, "loop") || strings.HasPrefix(dev, "zram") {
+		return false
+	}
+	return m.FSType != "squashfs"
+}
+
+func diskUsagePriority(path string) int {
+	switch filepath.Clean(path) {
+	case "/":
+		return 0
+	case "/mnt/ssd":
+		return 1
+	case "/mnt/fast":
+		return 2
+	case "/mnt/hdd":
+		return 3
+	default:
+		return 4
+	}
+}
+
+func sortDiskUsage(usage []model.DiskUsage) {
+	sort.SliceStable(usage, func(i, j int) bool {
+		pi := diskUsagePriority(usage[i].Path)
+		pj := diskUsagePriority(usage[j].Path)
+		if pi != pj {
+			return pi < pj
+		}
+		return strings.ToLower(usage[i].Path) < strings.ToLower(usage[j].Path)
+	})
+}
+
 type DiskCollector struct {
 	mu                  sync.Mutex
 	paths               []string
@@ -148,8 +189,25 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 	devSeen := map[string]bool{}
 	var usage []model.DiskUsage
 	var devices []string
-	var su, st uint64
-	sp := 0
+
+	addMount := func(m mountInfo, statPath string) {
+		mp := filepath.Clean(m.MountPoint)
+		if seen[mp] {
+			return
+		}
+		u, t, pct, ok := statFS(statPath)
+		if !ok {
+			return
+		}
+		seen[mp] = true
+		usage = append(usage, model.DiskUsage{Path: mp, Filesystem: m.Source, UsedBytes: u, TotalBytes: t, Percent: pct})
+		if dev := physicalBlock(m.Source); dev != "" && !devSeen[dev] {
+			devSeen[dev] = true
+			devices = append(devices, dev)
+		}
+	}
+
+	// Preserve the old explicitly configured paths first.
 	for _, p := range d.paths {
 		if _, err := os.Stat(p); err != nil {
 			continue
@@ -158,22 +216,27 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 		if !ok {
 			continue
 		}
-		u, t, pct, ok := statFS(p)
-		if !ok {
+		addMount(m, p)
+	}
+
+	// Then add other local block-device mounts automatically.
+	for _, m := range mounts {
+		if !autoDiskMount(m) {
 			continue
 		}
-		if !seen[m.MountPoint] {
-			seen[m.MountPoint] = true
-			usage = append(usage, model.DiskUsage{Path: m.MountPoint, Filesystem: m.Source, UsedBytes: u, TotalBytes: t, Percent: pct})
+		if _, err := os.Stat(m.MountPoint); err != nil {
+			continue
 		}
-		if filepath.Clean(p) == filepath.Clean(d.storagePath) {
-			su, st, sp = u, t, pct
-		}
-		if dev := physicalBlock(m.Source); dev != "" && !devSeen[dev] {
-			devSeen[dev] = true
-			devices = append(devices, dev)
-		}
+		addMount(m, m.MountPoint)
 	}
+	sortDiskUsage(usage)
+
+	var su, st uint64
+	sp := 0
+	if u, t, pct, ok := statFS(d.storagePath); ok {
+		su, st, sp = u, t, pct
+	}
+
 	healthDevices := append([]string(nil), devices...)
 	for _, dev := range discoverNVMeBlockDevices() {
 		if !devSeen[dev] {
