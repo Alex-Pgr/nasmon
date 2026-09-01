@@ -102,17 +102,29 @@ func shouldPollDisk(dev string, quietWindow time.Duration) bool {
 	return time.Since(st.lastActivity) < quietWindow
 }
 
-func smartctl(dev string, args ...string) (string, error) {
-	full := append(args, "/dev/"+dev)
-	out, err := exec.Command("smartctl", full...).CombinedOutput()
-	if err == nil {
-		return string(out), nil
-	}
-	low := strings.ToLower(string(out))
-	if strings.Contains(low, "permission denied") || strings.Contains(low, "must be root") || strings.Contains(low, "operation not permitted") {
-		out, err = exec.Command("sudo", append([]string{"-n", "smartctl"}, full...)...).CombinedOutput()
+func smartctlPermissionError(text string) bool {
+	low := strings.ToLower(text)
+	return strings.Contains(low, "permission denied") || strings.Contains(low, "must be root") || strings.Contains(low, "operation not permitted")
+}
+
+func runSmartctl(args []string) (string, error) {
+	out, err := exec.Command("smartctl", args...).CombinedOutput()
+	if err != nil && smartctlPermissionError(string(out)) {
+		out, err = exec.Command("sudo", append([]string{"-n", "smartctl"}, args...)...).CombinedOutput()
 	}
 	return string(out), err
+}
+
+func smartctl(dev string, args ...string) (string, error) {
+	full := append(append([]string(nil), args...), "/dev/"+dev)
+	txt, err := runSmartctl(full)
+	low := strings.ToLower(txt)
+	if strings.Contains(low, "unknown usb bridge") || strings.Contains(low, "please specify device type with the -d option") {
+		sat := append([]string{"-d", "sat"}, args...)
+		sat = append(sat, "/dev/"+dev)
+		return runSmartctl(sat)
+	}
+	return txt, err
 }
 
 func diskPowerState(dev string) (bool, bool) {
@@ -173,6 +185,15 @@ func sleeping(text string) bool {
 }
 func parseTemp(text string) string {
 	for _, ln := range strings.Split(text, "\n") {
+		trimmed := strings.TrimSpace(ln)
+		if strings.HasPrefix(trimmed, "Temperature:") {
+			p := strings.Fields(trimmed)
+			if len(p) >= 2 {
+				if _, e := strconv.Atoi(p[1]); e == nil {
+					return p[1] + "°C"
+				}
+			}
+		}
 		if strings.Contains(ln, "Temperature_Celsius") || strings.Contains(ln, "Temperature_Case") || strings.Contains(ln, "Airflow_Temperature_Cel") || strings.Contains(ln, "Temperature_Internal") {
 			p := strings.Fields(ln)
 			if len(p) >= 10 {

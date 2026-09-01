@@ -61,9 +61,9 @@ func (a *App) Bootstrap() {
 	a.Disk.CollectIO(a.Store)
 	collect.RefreshDiskActivity(a.Disk.Devices())
 	collect.CollectGPU(a.Config.GPUHelper, a.Store)
-	collect.CollectDiskTemps(a.Disk.Devices(), a.Config.DiskQuietWindow, a.Store)
-	collect.CollectSMART(a.Disk.Devices(), a.Config.DiskQuietWindow, a.Store)
-	collect.CollectDiskPowerState(a.Disk.Devices(), a.Store)
+	collect.CollectDiskTemps(a.Disk.HealthDevices(), a.Config.DiskQuietWindow, a.Store)
+	collect.CollectSMART(a.Disk.HealthDevices(), a.Config.DiskQuietWindow, a.Store)
+	collect.CollectDiskPowerState(a.Disk.HealthDevices(), a.Store)
 	collect.CollectDocker(a.Store)
 	collect.CollectSystemd(a.Store)
 }
@@ -84,15 +84,15 @@ func (a *App) Start(ctx context.Context) {
 	go periodic(ctx, a.Config.GPUInterval, func() { collect.CollectGPU(a.Config.GPUHelper, a.Store); a.ping() })
 	go periodic(ctx, a.Config.DiskInterval, func() {
 		a.Disk.CollectUsage(a.Store)
-		collect.CollectDiskPowerState(a.Disk.Devices(), a.Store)
+		collect.CollectDiskPowerState(a.Disk.HealthDevices(), a.Store)
 		a.ping()
 	})
 	go periodic(ctx, a.Config.DiskTempInterval, func() {
-		collect.CollectDiskTemps(a.Disk.Devices(), a.Config.DiskQuietWindow, a.Store)
+		collect.CollectDiskTemps(a.Disk.HealthDevices(), a.Config.DiskQuietWindow, a.Store)
 		a.ping()
 	})
 	go periodic(ctx, a.Config.SMARTInterval, func() {
-		collect.CollectSMART(a.Disk.Devices(), a.Config.DiskQuietWindow, a.Store)
+		collect.CollectSMART(a.Disk.HealthDevices(), a.Config.DiskQuietWindow, a.Store)
 		a.ping()
 	})
 	go periodic(ctx, a.Config.DockerInterval, func() { collect.CollectDocker(a.Store); a.ping() })

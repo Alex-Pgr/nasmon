@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -97,11 +98,32 @@ func physicalBlock(source string) string {
 	return dev
 }
 
+func discoverNVMeBlockDevices() []string {
+	entries, err := filepath.Glob("/sys/class/block/nvme*n*")
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, entry := range entries {
+		dev := filepath.Base(entry)
+		if _, err := os.Stat(filepath.Join(entry, "partition")); err == nil {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join("/dev", dev)); err != nil {
+			continue
+		}
+		out = append(out, dev)
+	}
+	sort.Strings(out)
+	return out
+}
+
 type DiskCollector struct {
 	mu                  sync.Mutex
 	paths               []string
 	storagePath         string
 	devices             []string
+	healthDevices       []string
 	prevRead, prevWrite uint64
 	prevAt              time.Time
 }
@@ -113,6 +135,11 @@ func (d *DiskCollector) Devices() []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]string(nil), d.devices...)
+}
+func (d *DiskCollector) HealthDevices() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]string(nil), d.healthDevices...)
 }
 
 func (d *DiskCollector) CollectUsage(store *model.Store) {
@@ -147,8 +174,16 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 			devices = append(devices, dev)
 		}
 	}
+	healthDevices := append([]string(nil), devices...)
+	for _, dev := range discoverNVMeBlockDevices() {
+		if !devSeen[dev] {
+			devSeen[dev] = true
+			healthDevices = append(healthDevices, dev)
+		}
+	}
 	d.mu.Lock()
 	d.devices = devices
+	d.healthDevices = healthDevices
 	d.mu.Unlock()
 	store.Update(func(s *model.Snapshot) {
 		s.DiskUsage = usage
