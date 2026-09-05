@@ -25,6 +25,11 @@ func main() {
 	defer os.Remove(cfg.StateFile)
 
 	a := app.New(cfg)
+	if err := statefile.WriteAtomic(cfg.StateFile, a.Store.Snapshot()); err != nil {
+		fmt.Fprintf(os.Stderr, "nasmond: cannot write startup state %s: %v\n", cfg.StateFile, err)
+		os.Exit(1)
+	}
+
 	a.Bootstrap()
 	if err := statefile.WriteAtomic(cfg.StateFile, a.Store.Snapshot()); err != nil {
 		fmt.Fprintf(os.Stderr, "nasmond: cannot write initial state %s: %v\n", cfg.StateFile, err)
