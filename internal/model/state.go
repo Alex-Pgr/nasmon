@@ -21,6 +21,15 @@ type DiskHealth struct {
 	Pending     int64
 	Uncorrect   int64
 	Sleeping    bool
+
+	NVMe               bool
+	NVMeMetrics        bool
+	PercentageUsed     int
+	AvailableSpare     int
+	SpareThreshold     int
+	CriticalWarning    uint64
+	MediaErrors        uint64
+	ErrorLogEntries    uint64
 }
 
 type Container struct {

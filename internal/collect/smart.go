@@ -227,6 +227,7 @@ func sleeping(text string) bool {
 	l := strings.ToLower(text)
 	return strings.Contains(l, "standby") || strings.Contains(l, "sleep mode") || strings.Contains(l, "low-power mode")
 }
+
 func parseTemp(text string) string {
 	for _, ln := range strings.Split(text, "\n") {
 		trimmed := strings.TrimSpace(ln)
@@ -249,6 +250,87 @@ func parseTemp(text string) string {
 	}
 	return "N/A"
 }
+
+func smartMetric(text, label string) (string, bool) {
+	prefix := label + ":"
+	for _, ln := range strings.Split(text, "\n") {
+		trimmed := strings.TrimSpace(ln)
+		if strings.HasPrefix(trimmed, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, prefix)), true
+		}
+	}
+	return "", false
+}
+
+func parseMetricUint(raw string) (uint64, bool) {
+	fields := strings.Fields(raw)
+	if len(fields) == 0 {
+		return 0, false
+	}
+	token := strings.TrimSuffix(fields[0], "%")
+	token = strings.ReplaceAll(token, ",", "")
+	base := 10
+	if strings.HasPrefix(strings.ToLower(token), "0x") {
+		base = 0
+	}
+	v, err := strconv.ParseUint(token, base, 64)
+	return v, err == nil
+}
+
+func parseNVMeSMART(text string, h *model.DiskHealth) {
+	h.NVMe = true
+	parsed := false
+	if raw, ok := smartMetric(text, "Critical Warning"); ok {
+		if v, valid := parseMetricUint(raw); valid {
+			h.CriticalWarning = v
+			parsed = true
+		}
+	}
+	if raw, ok := smartMetric(text, "Available Spare"); ok {
+		if v, valid := parseMetricUint(raw); valid {
+			h.AvailableSpare = int(v)
+			parsed = true
+		}
+	}
+	if raw, ok := smartMetric(text, "Available Spare Threshold"); ok {
+		if v, valid := parseMetricUint(raw); valid {
+			h.SpareThreshold = int(v)
+			parsed = true
+		}
+	}
+	if raw, ok := smartMetric(text, "Percentage Used"); ok {
+		if v, valid := parseMetricUint(raw); valid {
+			h.PercentageUsed = int(v)
+			parsed = true
+		}
+	}
+	if raw, ok := smartMetric(text, "Media and Data Integrity Errors"); ok {
+		if v, valid := parseMetricUint(raw); valid {
+			h.MediaErrors = v
+			parsed = true
+		}
+	}
+	if raw, ok := smartMetric(text, "Error Information Log Entries"); ok {
+		if v, valid := parseMetricUint(raw); valid {
+			h.ErrorLogEntries = v
+			parsed = true
+		}
+	}
+	if parsed {
+		h.NVMeMetrics = true
+	}
+}
+
+func nvmeHealthWarning(h model.DiskHealth) bool {
+	if h.CriticalWarning != 0 || h.MediaErrors > 0 {
+		return true
+	}
+	if h.NVMeMetrics && h.PercentageUsed >= 100 {
+		return true
+	}
+	return h.SpareThreshold > 0 && h.AvailableSpare < h.SpareThreshold
+}
+
 func CollectDiskTemps(devs []string, quietWindow time.Duration, store *model.Store) {
 	snap := store.Snapshot()
 	m := map[string]model.DiskHealth{}
@@ -280,6 +362,7 @@ func CollectDiskTemps(devs []string, quietWindow time.Duration, store *model.Sto
 	}
 	store.Update(func(s *model.Snapshot) { s.DiskHealth = out })
 }
+
 func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) {
 	snap := store.Snapshot()
 	m := map[string]model.DiskHealth{}
@@ -289,6 +372,7 @@ func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) 
 	for _, d := range devs {
 		h := m[d]
 		h.Device = d
+		h.NVMe = strings.HasPrefix(d, "nvme")
 		if !shouldPollDisk(d, quietWindow) {
 			m[d] = h
 			continue
@@ -311,25 +395,33 @@ func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) 
 		default:
 			h.Health = "N/A"
 		}
-		for _, ln := range strings.Split(txt, "\n") {
-			f := strings.Fields(ln)
-			if len(f) < 10 {
-				continue
+
+		if h.NVMe {
+			parseNVMeSMART(txt, &h)
+			if nvmeHealthWarning(h) {
+				h.Health = "WARN"
 			}
-			if f[0] != "5" && f[0] != "197" && f[0] != "198" {
-				continue
-			}
-			v, err := strconv.ParseInt(f[9], 10, 64)
-			if err != nil {
-				continue
-			}
-			switch f[0] {
-			case "5":
-				h.Reallocated = v
-			case "197":
-				h.Pending = v
-			case "198":
-				h.Uncorrect = v
+		} else {
+			for _, ln := range strings.Split(txt, "\n") {
+				f := strings.Fields(ln)
+				if len(f) < 10 {
+					continue
+				}
+				if f[0] != "5" && f[0] != "197" && f[0] != "198" {
+					continue
+				}
+				v, err := strconv.ParseInt(f[9], 10, 64)
+				if err != nil {
+					continue
+				}
+				switch f[0] {
+				case "5":
+					h.Reallocated = v
+				case "197":
+					h.Pending = v
+				case "198":
+					h.Uncorrect = v
+				}
 			}
 		}
 		m[d] = h

@@ -207,6 +207,38 @@ func add(b *strings.Builder, s string) {
 func bottom(w int) string { return "└" + rep("─", w-1) }
 func full(w int) string   { return rep("═", w) }
 
+func diskHealthOK(h model.DiskHealth) bool {
+	if h.Health != "OK" {
+		return false
+	}
+	if h.NVMe {
+		if h.CriticalWarning != 0 || h.MediaErrors > 0 || (h.NVMeMetrics && h.PercentageUsed >= 100) {
+			return false
+		}
+		return h.SpareThreshold == 0 || h.AvailableSpare >= h.SpareThreshold
+	}
+	return h.Reallocated == 0 && h.Pending == 0 && h.Uncorrect == 0
+}
+
+func diskHealthDetails(h model.DiskHealth, compact bool) string {
+	if !h.NVMe {
+		return fmt.Sprintf("R:%d P:%d U:%d", h.Reallocated, h.Pending, h.Uncorrect)
+	}
+	if !h.NVMeMetrics {
+		return "NVMe metrics N/A"
+	}
+	var details string
+	if compact {
+		details = fmt.Sprintf("U:%d%% S:%d%% M:%d E:%d", h.PercentageUsed, h.AvailableSpare, h.MediaErrors, h.ErrorLogEntries)
+	} else {
+		details = fmt.Sprintf("Used:%d%% Spare:%d%% Media:%d Err:%d", h.PercentageUsed, h.AvailableSpare, h.MediaErrors, h.ErrorLogEntries)
+	}
+	if h.CriticalWarning != 0 {
+		details += fmt.Sprintf(" CW:0x%02x", h.CriticalWarning)
+	}
+	return details
+}
+
 func (r Renderer) renderRegular(s model.Snapshot, w, rows int) string {
 	var b strings.Builder
 	n := 0
@@ -265,14 +297,14 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int) string {
 	addn(white + "┌── Health" + reset)
 	for _, h := range s.DiskHealth {
 		mark := yellow + "SMART " + h.Health + reset
-		if h.Health == "OK" && h.Reallocated == 0 && h.Pending == 0 && h.Uncorrect == 0 {
+		if diskHealthOK(h) {
 			mark = green + "✓ SMART OK" + reset
 		}
 		sleepMark := ""
 		if h.Sleeping {
 			sleepMark = " " + blue + "SLEEP" + reset
 		}
-		addn(fmt.Sprintf("%s│ %s/dev/%s%s  %s  %s %sR:%d P:%d U:%d%s%s", white, lightGray, h.Device, reset, h.Temperature, mark, gray, h.Reallocated, h.Pending, h.Uncorrect, reset, sleepMark))
+		addn(fmt.Sprintf("%s│ %s/dev/%s%s  %s  %s %s%s%s%s", white, lightGray, h.Device, reset, h.Temperature, mark, gray, diskHealthDetails(h, false), reset, sleepMark))
 	}
 	addn(white + bottom(w) + reset)
 	addn("")
@@ -523,7 +555,7 @@ func (r Renderer) renderLandscape(s model.Snapshot, w int) string {
 	for _, h := range s.DiskHealth {
 		state := "SMART " + h.Health
 		stateColor := yellow
-		if h.Health == "OK" && h.Reallocated == 0 && h.Pending == 0 && h.Uncorrect == 0 {
+		if diskHealthOK(h) {
 			state = "SMART OK"
 			stateColor = green
 		}
@@ -531,7 +563,7 @@ func (r Renderer) renderLandscape(s model.Snapshot, w int) string {
 		if h.Sleeping {
 			sleepMark = " " + blue + "SLEEP" + reset
 		}
-		health = append(health, fmt.Sprintf(" %s/dev/%s%s %s%s %s%s%s %sR:%d P:%d U:%d%s%s", lightGray, h.Device, reset, white, h.Temperature, stateColor, state, reset, gray, h.Reallocated, h.Pending, h.Uncorrect, reset, sleepMark))
+		health = append(health, fmt.Sprintf(" %s/dev/%s%s %s%s %s%s%s %s%s%s%s", lightGray, h.Device, reset, white, h.Temperature, stateColor, state, reset, gray, diskHealthDetails(h, true), reset, sleepMark))
 	}
 
 	lowerRows := len(disks)
