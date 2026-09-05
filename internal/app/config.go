@@ -22,6 +22,7 @@ type Config struct {
 	Interface    string
 	GPUHelper    string
 	StoragePath  string
+	StateFile    string
 	DiskPaths    []string
 	RightMargin  int
 	MinTermWidth int
@@ -60,6 +61,10 @@ func DefaultConfig() Config {
 	if storage == "" {
 		storage = "/mnt/hdd"
 	}
+	stateFile := os.Getenv("NAS_STATE_FILE")
+	if stateFile == "" {
+		stateFile = "/run/nasmon/state.json"
+	}
 
 	return Config{
 		MainInterval:      envDuration("MAIN_INTERVAL", 2*time.Second),
@@ -75,6 +80,7 @@ func DefaultConfig() Config {
 		Interface:         iface,
 		GPUHelper:         helper,
 		StoragePath:       storage,
+		StateFile:         stateFile,
 		DiskPaths:         []string{"/", "/mnt/ssd", "/mnt/hdd"},
 		RightMargin:       2,
 		MinTermWidth:      36,

@@ -1,4 +1,3 @@
-# Compatibility template. New installs should use nasmond.service.example.
 [Unit]
 Description=NAS Monitor collector daemon
 After=network.target docker.service
