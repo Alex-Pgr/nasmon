@@ -227,11 +227,18 @@ func diskHealthDetails(h model.DiskHealth, compact bool) string {
 	if !h.NVMeMetrics {
 		return "NVMe metrics N/A"
 	}
+
 	var details string
 	if compact {
-		details = fmt.Sprintf("U:%d%% S:%d%% M:%d E:%d", h.PercentageUsed, h.AvailableSpare, h.MediaErrors, h.ErrorLogEntries)
+		details = fmt.Sprintf("W:%d%% S:%d%%", h.PercentageUsed, h.AvailableSpare)
 	} else {
-		details = fmt.Sprintf("Used:%d%% Spare:%d%% Media:%d Err:%d", h.PercentageUsed, h.AvailableSpare, h.MediaErrors, h.ErrorLogEntries)
+		details = fmt.Sprintf("Wear:%d%% Spare:%d%%", h.PercentageUsed, h.AvailableSpare)
+	}
+	if h.MediaErrors != 0 {
+		details += fmt.Sprintf(" Media:%d", h.MediaErrors)
+	}
+	if h.ErrorLogEntries != 0 {
+		details += fmt.Sprintf(" Err:%d", h.ErrorLogEntries)
 	}
 	if h.CriticalWarning != 0 {
 		details += fmt.Sprintf(" CW:0x%02x", h.CriticalWarning)
@@ -304,7 +311,7 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int) string {
 		if h.Sleeping {
 			sleepMark = " " + blue + "SLEEP" + reset
 		}
-		addn(fmt.Sprintf("%s│ %s/dev/%s%s  %s  %s %s%s%s%s", white, lightGray, h.Device, reset, h.Temperature, mark, gray, diskHealthDetails(h, false), reset, sleepMark))
+		addn(fmt.Sprintf("%s│ %s%s%s  %s  %s %s%s%s%s", white, lightGray, h.Device, reset, h.Temperature, mark, gray, diskHealthDetails(h, false), reset, sleepMark))
 	}
 	addn(white + bottom(w) + reset)
 	addn("")
@@ -563,7 +570,7 @@ func (r Renderer) renderLandscape(s model.Snapshot, w int) string {
 		if h.Sleeping {
 			sleepMark = " " + blue + "SLEEP" + reset
 		}
-		health = append(health, fmt.Sprintf(" %s/dev/%s%s %s%s %s%s%s %s%s%s%s", lightGray, h.Device, reset, white, h.Temperature, stateColor, state, reset, gray, diskHealthDetails(h, true), reset, sleepMark))
+		health = append(health, fmt.Sprintf(" %s%s%s %s%s %s%s%s %s%s%s%s", lightGray, h.Device, reset, white, h.Temperature, stateColor, state, reset, gray, diskHealthDetails(h, true), reset, sleepMark))
 	}
 
 	lowerRows := len(disks)
