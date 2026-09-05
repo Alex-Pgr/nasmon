@@ -84,6 +84,9 @@ func (a *App) Start(ctx context.Context) {
 	go periodic(ctx, a.Config.GPUInterval, func() { collect.CollectGPU(a.Config.GPUHelper, a.Store); a.ping() })
 	go periodic(ctx, a.Config.DiskInterval, func() {
 		a.Disk.CollectUsage(a.Store)
+		a.ping()
+	})
+	go periodic(ctx, a.Config.DiskPowerInterval, func() {
 		collect.CollectDiskPowerState(a.Disk.HealthDevices(), a.Store)
 		a.ping()
 	})

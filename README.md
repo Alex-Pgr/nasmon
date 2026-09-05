@@ -45,6 +45,7 @@ STORAGE_PATH=/mnt/hdd
 GPU_INTERVAL=10
 DOCKER_INTERVAL=30
 DISK_LAYOUT_INTERVAL=15
+DISK_POWER_INTERVAL=60
 DISK_TEMP_INTERVAL=900
 DISK_QUIET_WINDOW=300
 SMART_INTERVAL=3600
@@ -65,7 +66,7 @@ The current sudoers rule for `/usr/local/bin/nas-gpu-info` can stay as-is.
 
 SMART behavior retains `smartctl -n standby,0`, so a sleeping HDD should not be spun up by the monitor. In addition, rotational HDDs are no longer queried after the quiet window has elapsed, which avoids the monitor itself interfering with a configured spindown timer. By default HDD temperature polling is every 15 minutes and SMART health polling is every hour while the drive is recently active.
 
-For rotational drives, `hdparm -C` is used on the normal disk-layout interval to query ATA power state without spinning the disk up. The last known temperature, SMART health, and R/P/U counters remain visible; a blue `SLEEP` suffix is added when the drive reports standby. If the user cannot issue the power-state ioctl directly, `nasmon` falls back to `sudo -n hdparm -C`.
+For rotational drives, `hdparm -C` is queried independently every 60 seconds by default to read ATA power state without spinning the disk up. The last known temperature, SMART health, and R/P/U counters remain visible; a blue `SLEEP` suffix is added when the drive reports standby. If the user cannot issue the power-state ioctl directly, `nasmon` falls back to `sudo -n hdparm -C`. When non-interactive sudo reports that authentication/authorization is unavailable, further sudo attempts for that device are suppressed for 10 minutes before retrying, avoiding repeated PAM/journald noise.
 
 Docker is read through `/var/run/docker.sock`. The user running `nasmon` must have access to that socket (normally membership in the `docker` group, which is already required for unprivileged `docker ps`).
 

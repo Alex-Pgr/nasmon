@@ -19,9 +19,14 @@ type diskActivityState struct {
 	initialized  bool
 }
 
+const diskPowerSudoBackoff = 10 * time.Minute
+
 var (
 	diskActivityMu sync.Mutex
 	diskActivity   = map[string]diskActivityState{}
+
+	diskPowerMu         sync.Mutex
+	diskPowerRetryAfter = map[string]time.Time{}
 )
 
 func RefreshDiskActivity(devs []string) {
@@ -127,13 +132,52 @@ func smartctl(dev string, args ...string) (string, error) {
 	return txt, err
 }
 
+func hdparmPermissionError(text string) bool {
+	low := strings.ToLower(text)
+	return strings.Contains(low, "permission denied") || strings.Contains(low, "operation not permitted")
+}
+
+func hdparmSudoUnavailable(text string) bool {
+	low := strings.ToLower(text)
+	return strings.Contains(low, "password is required") ||
+		strings.Contains(low, "a terminal is required") ||
+		strings.Contains(low, "no tty present") ||
+		strings.Contains(low, "not allowed to execute")
+}
+
+func diskPowerRetryAllowed(dev string) bool {
+	diskPowerMu.Lock()
+	defer diskPowerMu.Unlock()
+	retryAfter, ok := diskPowerRetryAfter[dev]
+	return !ok || time.Now().After(retryAfter)
+}
+
+func setDiskPowerRetryBackoff(dev string) {
+	diskPowerMu.Lock()
+	diskPowerRetryAfter[dev] = time.Now().Add(diskPowerSudoBackoff)
+	diskPowerMu.Unlock()
+}
+
+func clearDiskPowerRetryBackoff(dev string) {
+	diskPowerMu.Lock()
+	delete(diskPowerRetryAfter, dev)
+	diskPowerMu.Unlock()
+}
+
 func diskPowerState(dev string) (bool, bool) {
 	args := []string{"-C", "/dev/" + dev}
 	out, err := exec.Command("hdparm", args...).CombinedOutput()
-	if err != nil {
-		low := strings.ToLower(string(out))
-		if strings.Contains(low, "permission denied") || strings.Contains(low, "operation not permitted") {
-			out, err = exec.Command("sudo", "-n", "hdparm", "-C", "/dev/"+dev).CombinedOutput()
+	if err != nil && hdparmPermissionError(string(out)) {
+		if !diskPowerRetryAllowed(dev) {
+			return false, false
+		}
+		out, err = exec.Command("sudo", "-n", "hdparm", "-C", "/dev/"+dev).CombinedOutput()
+		if err != nil && hdparmSudoUnavailable(string(out)) {
+			setDiskPowerRetryBackoff(dev)
+			return false, false
+		}
+		if err == nil {
+			clearDiskPowerRetryBackoff(dev)
 		}
 	}
 	if err != nil {
