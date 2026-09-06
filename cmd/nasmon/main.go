@@ -126,7 +126,7 @@ func runClient(ctx context.Context, cfg app.Config) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "nasmon: не удалось прочитать %s: %v\n", cfg.StateFile, err)
 		fmt.Fprintln(os.Stderr, "запусти nasmond или используй nasmon --standalone")
-		return
+		os.Exit(1)
 	}
 
 	renderer := tui.Renderer{Config: cfg}
