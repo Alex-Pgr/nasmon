@@ -43,6 +43,16 @@ func dockerStatus(c model.Container) string {
 	return strings.TrimSpace(txt)
 }
 
+func healthDeviceWidth(health []model.DiskHealth) int {
+	width := 3
+	for _, h := range health {
+		if n := utf8.RuneCountInString(h.Device); n > width {
+			width = n
+		}
+	}
+	return clamp(width, 3, 16)
+}
+
 func selectDockerContainers(containers []model.Container, limit int) []model.Container {
 	if limit <= 0 {
 		return nil
@@ -194,6 +204,7 @@ func (r Renderer) renderRegularAdaptive(s model.Snapshot, w, rows int) string {
 
 	addn("")
 	addn(white + "┌── Health" + reset)
+	deviceW := healthDeviceWidth(s.DiskHealth)
 	for _, h := range s.DiskHealth {
 		mark := yellow + "SMART " + h.Health + reset
 		if diskHealthOK(h) {
@@ -203,7 +214,7 @@ func (r Renderer) renderRegularAdaptive(s model.Snapshot, w, rows int) string {
 		if h.Sleeping {
 			sleepMark = " " + blue + "SLEEP" + reset
 		}
-		addn(fmt.Sprintf("%s│ %s%s%s  %s  %s %s%s%s%s", white, lightGray, h.Device, reset, h.Temperature, mark, gray, diskHealthDetails(h, false), reset, sleepMark))
+		addn(fmt.Sprintf("%s│ %s%-*s%s  %-5s %s %s%s%s%s", white, lightGray, deviceW, trunc(h.Device, deviceW), reset, h.Temperature, mark, gray, diskHealthDetails(h, false), reset, sleepMark))
 	}
 	addn(white + bottom(w) + reset)
 
@@ -259,6 +270,12 @@ func (r Renderer) renderLandscapeAdaptive(s model.Snapshot, w, rows int) string 
 
 	copySnap := s
 	copySnap.Containers = append([]model.Container(nil), s.Containers...)
+	copySnap.DiskHealth = append([]model.DiskHealth(nil), s.DiskHealth...)
+	deviceW := healthDeviceWidth(copySnap.DiskHealth)
+	for i := range copySnap.DiskHealth {
+		copySnap.DiskHealth[i].Device = fmt.Sprintf("%-*s", deviceW, trunc(copySnap.DiskHealth[i].Device, deviceW))
+		copySnap.DiskHealth[i].Temperature = fmt.Sprintf("%-5s", copySnap.DiskHealth[i].Temperature)
+	}
 	if compactHeader && rows > 0 {
 		availableUpper := rows - 6 - lowerRows
 		if availableUpper < len(copySnap.Containers) {
