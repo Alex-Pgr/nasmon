@@ -32,6 +32,14 @@ func dockerStatus(c model.Container) string {
 		txt = strings.ReplaceAll(txt, " ("+c.Health+")", "")
 		txt = strings.ReplaceAll(txt, " (health: "+c.Health+")", "")
 	}
+	txt = strings.NewReplacer(
+		" seconds", "s",
+		" second", "s",
+		" minutes", "m",
+		" minute", "m",
+		" hours", "h",
+		" hour", "h",
+	).Replace(txt)
 	return strings.TrimSpace(txt)
 }
 
@@ -207,7 +215,7 @@ func (r Renderer) renderRegularAdaptive(s model.Snapshot, w, rows int) string {
 	if statusW < 6 {
 		statusW = 6
 	}
-	addn(fmt.Sprintf("%s│ %-*s  %*s  STATUS%s", white, nameW, "NAMES", ramW, "RAM", reset))
+	addn(fmt.Sprintf("%s│   %-*s  %*s  STATUS%s", white, nameW, "NAMES", ramW, "RAM", reset))
 	for _, c := range containers {
 		icon, color := "●", blue
 		if c.State != "running" || c.Health == "unhealthy" {
