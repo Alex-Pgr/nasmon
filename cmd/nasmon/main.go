@@ -67,12 +67,21 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 	a.Start(ctx)
 	tui.Enter()
 	defer tui.Leave()
-	draw := func() { rows, cols := tui.Size(); tui.Draw(renderer.RenderAdaptive(a.Store.Snapshot(), rows, cols)) }
+
+	sortMode := tui.DockerSortDefault
+	lastFrame := ""
+	draw := func() {
+		rows, cols := tui.Size()
+		lastFrame = renderer.RenderInteractive(a.Store.Snapshot(), rows, cols, sortMode)
+		tui.Draw(lastFrame)
+	}
 	draw()
 	if cfg.OneShot {
 		return
 	}
 
+	mouseEvents, stopMouse := tui.StartMouseInput()
+	defer stopMouse()
 	winch := make(chan os.Signal, 1)
 	signal.Notify(winch, syscall.SIGWINCH)
 	defer signal.Stop(winch)
@@ -84,6 +93,15 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 			draw()
 		case <-winch:
 			draw()
+		case ev, ok := <-mouseEvents:
+			if !ok {
+				mouseEvents = nil
+				continue
+			}
+			if next, changed := tui.DockerSortForClick(lastFrame, ev.X, ev.Y, sortMode); changed {
+				sortMode = next
+				draw()
+			}
 		}
 	}
 }
@@ -131,10 +149,13 @@ func runClient(ctx context.Context, cfg app.Config) {
 
 	renderer := tui.Renderer{Config: cfg}
 	clientStartedAt := time.Now()
+	sortMode := tui.DockerSortDefault
+	lastFrame := ""
 	draw := func(s model.Snapshot) {
 		s.StartedAt = clientStartedAt
 		rows, cols := tui.Size()
-		tui.Draw(renderer.RenderAdaptive(s, rows, cols))
+		lastFrame = renderer.RenderInteractive(s, rows, cols, sortMode)
+		tui.Draw(lastFrame)
 	}
 
 	tui.Enter()
@@ -144,6 +165,8 @@ func runClient(ctx context.Context, cfg app.Config) {
 		return
 	}
 
+	mouseEvents, stopMouse := tui.StartMouseInput()
+	defer stopMouse()
 	ticker := time.NewTicker(cfg.MainInterval)
 	defer ticker.Stop()
 	winch := make(chan os.Signal, 1)
@@ -161,6 +184,15 @@ func runClient(ctx context.Context, cfg app.Config) {
 			draw(snapshot)
 		case <-winch:
 			draw(snapshot)
+		case ev, ok := <-mouseEvents:
+			if !ok {
+				mouseEvents = nil
+				continue
+			}
+			if next, changed := tui.DockerSortForClick(lastFrame, ev.X, ev.Y, sortMode); changed {
+				sortMode = next
+				draw(snapshot)
+			}
 		}
 	}
 }
