@@ -88,12 +88,45 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 	}
 }
 
+func readInitialState(ctx context.Context, path string) (model.Snapshot, error) {
+	const (
+		startupWait = 3 * time.Second
+		retryEvery  = 100 * time.Millisecond
+	)
+
+	snapshot, err := statefile.Read(path)
+	if err == nil {
+		return snapshot, nil
+	}
+	lastErr := err
+
+	timer := time.NewTimer(startupWait)
+	defer timer.Stop()
+	ticker := time.NewTicker(retryEvery)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return model.Snapshot{}, ctx.Err()
+		case <-timer.C:
+			return model.Snapshot{}, lastErr
+		case <-ticker.C:
+			snapshot, err = statefile.Read(path)
+			if err == nil {
+				return snapshot, nil
+			}
+			lastErr = err
+		}
+	}
+}
+
 func runClient(ctx context.Context, cfg app.Config) {
-	snapshot, err := statefile.Read(cfg.StateFile)
+	snapshot, err := readInitialState(ctx, cfg.StateFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "nasmon: не удалось прочитать %s: %v\n", cfg.StateFile, err)
 		fmt.Fprintln(os.Stderr, "запусти nasmond или используй nasmon --standalone")
-		os.Exit(1)
+		return
 	}
 
 	renderer := tui.Renderer{Config: cfg}
