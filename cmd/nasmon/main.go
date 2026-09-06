@@ -67,7 +67,7 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 	a.Start(ctx)
 	tui.Enter()
 	defer tui.Leave()
-	draw := func() { rows, cols := tui.Size(); tui.Draw(renderer.Render(a.Store.Snapshot(), rows, cols)) }
+	draw := func() { rows, cols := tui.Size(); tui.Draw(renderer.RenderAdaptive(a.Store.Snapshot(), rows, cols)) }
 	draw()
 	if cfg.OneShot {
 		return
@@ -101,7 +101,7 @@ func runClient(ctx context.Context, cfg app.Config) {
 	draw := func(s model.Snapshot) {
 		s.StartedAt = clientStartedAt
 		rows, cols := tui.Size()
-		tui.Draw(renderer.Render(s, rows, cols))
+		tui.Draw(renderer.RenderAdaptive(s, rows, cols))
 	}
 
 	tui.Enter()

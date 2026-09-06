@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"nasmon/internal/model"
@@ -19,6 +20,7 @@ type dockerListItem struct {
 	Status string            `json:"Status"`
 	Labels map[string]string `json:"Labels"`
 }
+
 type dockerInspect struct {
 	RestartCount int `json:"RestartCount"`
 	State        struct {
@@ -28,6 +30,13 @@ type dockerInspect struct {
 	} `json:"State"`
 }
 
+type dockerStats struct {
+	MemoryStats struct {
+		Usage uint64            `json:"usage"`
+		Stats map[string]uint64 `json:"stats"`
+	} `json:"memory_stats"`
+}
+
 var dockerHTTPClient = newDockerClient()
 
 func newDockerClient() *http.Client {
@@ -35,11 +44,39 @@ func newDockerClient() *http.Client {
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 			return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "unix", "/var/run/docker.sock")
 		},
-		MaxIdleConns:        2,
-		MaxIdleConnsPerHost: 2,
+		MaxIdleConns:        4,
+		MaxIdleConnsPerHost: 4,
 		IdleConnTimeout:     90 * time.Second,
 	}
 	return &http.Client{Transport: tr, Timeout: 4 * time.Second}
+}
+
+// Match Docker CLI's Linux memory display: usage minus reclaimable inactive
+// file cache. cgroup v1 exposes total_inactive_file, cgroup v2 inactive_file.
+func dockerMemoryUsage(st dockerStats) uint64 {
+	usage := st.MemoryStats.Usage
+	for _, key := range []string{"total_inactive_file", "inactive_file"} {
+		if cache, ok := st.MemoryStats.Stats[key]; ok && cache < usage {
+			return usage - cache
+		}
+	}
+	return usage
+}
+
+func collectDockerMemory(c *http.Client, id string) (uint64, bool) {
+	resp, err := c.Get("http://docker/containers/" + id + "/stats?stream=false")
+	if err != nil {
+		return 0, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return 0, false
+	}
+	var st dockerStats
+	if json.NewDecoder(resp.Body).Decode(&st) != nil {
+		return 0, false
+	}
+	return dockerMemoryUsage(st), true
 }
 
 func CollectDocker(store *model.Store) {
@@ -90,6 +127,29 @@ func CollectDocker(store *model.Store) {
 		}
 		collected = append(collected, collectedContainer{container: co, group: group})
 	}
+
+	// Memory stats are sampled only for running containers. Four concurrent
+	// local Unix-socket requests keep collection latency low without creating a
+	// burst against the Docker daemon. This still runs only once per Docker
+	// collector interval (30s by default).
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+	for i := range collected {
+		if collected[i].container.State != "running" {
+			continue
+		}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			memory, ok := collectDockerMemory(c, collected[i].container.ID)
+			<-sem
+			if ok {
+				collected[i].container.MemoryBytes = memory
+			}
+		}(i)
+	}
+	wg.Wait()
 
 	sort.SliceStable(collected, func(i, j int) bool {
 		gi := strings.ToLower(collected[i].group)

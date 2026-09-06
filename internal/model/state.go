@@ -33,12 +33,13 @@ type DiskHealth struct {
 }
 
 type Container struct {
-	ID       string
-	Name     string
-	Status   string
-	State    string
-	Health   string
-	Restarts int
+	ID          string
+	Name        string
+	Status      string
+	State       string
+	Health      string
+	Restarts    int
+	MemoryBytes uint64
 }
 
 type Snapshot struct {
