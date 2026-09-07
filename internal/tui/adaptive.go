@@ -53,6 +53,13 @@ func healthDeviceWidth(health []model.DiskHealth) int {
 	return clamp(width, 3, 16)
 }
 
+func gpuUsageLabel(usage *int) string {
+	if usage == nil {
+		return "N/A"
+	}
+	return fmt.Sprintf("%d%%", *usage)
+}
+
 func selectDockerContainers(containers []model.Container, limit int) []model.Container {
 	if limit <= 0 {
 		return nil
@@ -166,7 +173,7 @@ func (r Renderer) renderRegularAdaptive(s model.Snapshot, w, rows int) string {
 	if s.GPUVCN == "ACTIVE" {
 		vcnColor = green
 	}
-	addn(fmt.Sprintf("%s│ GPU:%s %s%-5s%s  %sVCN:%s %s%-6s%s", white, reset, lightGray, temp(s.GPUTempC), reset, white, reset, vcnColor, s.GPUVCN, reset))
+	addn(fmt.Sprintf("%s│ GPU:%s %s%-5s%s  %s%-4s%s %sVCN:%s %s%-6s%s", white, reset, lightGray, temp(s.GPUTempC), reset, lightGray, gpuUsageLabel(s.GPUUsage), reset, white, reset, vcnColor, s.GPUVCN, reset))
 	addn(fmt.Sprintf("%s│ RAM:%s        %s%-4s%s%s[%s] %s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray, bar(s.MemPercent, bw), ramTail, reset))
 	if s.ZRAMTotalBytes > 0 {
 		zramTail := fmt.Sprintf("%s/%s GiB", gib(s.ZRAMUsedBytes), gib(s.ZRAMTotalBytes))
@@ -291,6 +298,7 @@ func (r Renderer) renderLandscapeAdaptive(s model.Snapshot, w, rows int) string 
 	}
 
 	out := r.renderLandscape(copySnap, w)
+	out = strings.Replace(out, "VCN", fmt.Sprintf("%-4s VCN", gpuUsageLabel(copySnap.GPUUsage)), 1)
 	out = strings.ReplaceAll(out, " (healthy)", "")
 	out = strings.ReplaceAll(out, " (unhealthy)", "")
 	out = strings.ReplaceAll(out, " (health: starting)", "")

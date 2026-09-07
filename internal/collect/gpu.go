@@ -1,7 +1,9 @@
 package collect
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,6 +12,33 @@ import (
 )
 
 var gpuTempRE = regexp.MustCompile(`GPU Temperature:\s*([0-9]+(?:\.[0-9]+)?)`)
+
+func readGPUUsage(paths []string) *int {
+	for _, path := range paths {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		v, err := strconv.Atoi(strings.TrimSpace(string(b)))
+		if err != nil {
+			continue
+		}
+		if v < 0 {
+			v = 0
+		}
+		if v > 100 {
+			v = 100
+		}
+		return &v
+	}
+	return nil
+}
+
+func CollectGPUUsage(store *model.Store) {
+	paths, _ := filepath.Glob("/sys/class/drm/card*/device/gpu_busy_percent")
+	usage := readGPUUsage(paths)
+	store.Update(func(s *model.Snapshot) { s.GPUUsage = usage })
+}
 
 func CollectGPU(helper string, store *model.Store) {
 	if helper == "" {

@@ -53,8 +53,9 @@ type Snapshot struct {
 	CPUTempC   *float64
 	IOWait     int
 
-	GPUTempC *float64
-	GPUVCN   string
+	GPUTempC  *float64
+	GPUUsage  *int
+	GPUVCN    string
 
 	MemUsedBytes   uint64
 	MemTotalBytes  uint64
