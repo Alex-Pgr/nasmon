@@ -54,10 +54,20 @@ func healthDeviceWidth(health []model.DiskHealth) int {
 }
 
 func gpuUsageLabel(usage *int) string {
-	if usage == nil {
-		return "N/A"
+	label := "N/A"
+	color := gray
+	if usage != nil {
+		label = fmt.Sprintf("%d%%", *usage)
+		switch {
+		case *usage >= 90:
+			color = orange
+		case *usage >= 60:
+			color = yellow
+		case *usage >= 10:
+			color = green
+		}
 	}
-	return fmt.Sprintf("%d%%", *usage)
+	return color + fmt.Sprintf("%-4s", label) + reset
 }
 
 func selectDockerContainers(containers []model.Container, limit int) []model.Container {
