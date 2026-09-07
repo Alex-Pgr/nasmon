@@ -72,7 +72,9 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 	lastFrame := ""
 	draw := func() {
 		rows, cols := tui.Size()
-		lastFrame = renderer.RenderInteractive(a.Store.Snapshot(), rows, cols, sortMode)
+		snapshot := a.Store.Snapshot()
+		tui.DecorateDiskHealth(&snapshot)
+		lastFrame = renderer.RenderInteractive(snapshot, rows, cols, sortMode)
 		tui.Draw(lastFrame)
 	}
 	draw()
@@ -153,6 +155,7 @@ func runClient(ctx context.Context, cfg app.Config) {
 	lastFrame := ""
 	draw := func(s model.Snapshot) {
 		s.StartedAt = clientStartedAt
+		tui.DecorateDiskHealth(&s)
 		rows, cols := tui.Size()
 		lastFrame = renderer.RenderInteractive(s, rows, cols, sortMode)
 		tui.Draw(lastFrame)
