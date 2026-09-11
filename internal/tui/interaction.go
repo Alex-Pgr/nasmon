@@ -113,9 +113,7 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode DockerSortMode) string {
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
 	if landscape {
-		copySnap := s
-		copySnap.Containers = sortDockerContainers(s.Containers, s.Containers, mode)
-		return r.RenderAdaptive(copySnap, rows, cols)
+		return r.renderLandscapeInteractiveAdaptive(s, w, effectiveRows, mode)
 	}
 
 	frame := r.RenderAdaptive(s, rows, cols)
