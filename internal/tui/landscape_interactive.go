@@ -181,7 +181,7 @@ func (r Renderer) renderLandscapeInteractive(s model.Snapshot, w int, mode Docke
 	pathW, usedW, totalW := landscapeDiskWidths(s.DiskUsage)
 	disks := make([]string, 0, len(s.DiskUsage))
 	for _, d := range s.DiskUsage {
-		disks = append(disks, fmt.Sprintf(" %s%-*s%s  %s%*s/%*s%s  %s%3d%%%s", lightGray, pathW, trunc(d.Path, pathW), reset, white, usedW, humanBytes(d.UsedBytes), totalW, humanBytes(d.TotalBytes), reset, pctColor(d.Percent, "disk"), d.Percent, reset))
+		disks = append(disks, fmt.Sprintf(" %s%-*s%s  %s%*s/%-*s%s  %s%3d%%%s", lightGray, pathW, trunc(d.Path, pathW), reset, white, usedW, humanBytes(d.UsedBytes), totalW, humanBytes(d.TotalBytes), reset, pctColor(d.Percent, "disk"), d.Percent, reset))
 	}
 
 	health := []string{}
