@@ -9,6 +9,31 @@ import (
 	"nasmon/internal/model"
 )
 
+func landscapeSystemRows(s model.Snapshot) int {
+	rows := 9 // uptime, CPU, GPU, RAM, swap, load, net, traffic, disk
+	if s.ZRAMTotalBytes > 0 {
+		rows++
+	}
+	return rows
+}
+
+func landscapeDiskWidths(usage []model.DiskUsage) (pathW, usedW, totalW int) {
+	pathW, usedW, totalW = 1, 1, 1
+	for _, d := range usage {
+		if n := utf8.RuneCountInString(d.Path); n > pathW {
+			pathW = n
+		}
+		if n := utf8.RuneCountInString(humanBytes(d.UsedBytes)); n > usedW {
+			usedW = n
+		}
+		if n := utf8.RuneCountInString(humanBytes(d.TotalBytes)); n > totalW {
+			totalW = n
+		}
+	}
+	pathW = clamp(pathW, 1, 18)
+	return
+}
+
 // renderLandscapeInteractiveAdaptive mirrors the adaptive landscape sizing,
 // but keeps Docker filtering and user sorting as separate steps: first choose
 // the important rows that fit, then sort only that visible subset.
@@ -18,7 +43,7 @@ func (r Renderer) renderLandscapeInteractiveAdaptive(s model.Snapshot, w, rows i
 		lowerRows = h
 	}
 
-	upperRows := 7
+	upperRows := landscapeSystemRows(s)
 	if dockerRows := 1 + len(s.Containers); dockerRows > upperRows { // +1 for column header
 		upperRows = dockerRows
 	}
@@ -91,14 +116,23 @@ func (r Renderer) renderLandscapeInteractive(s model.Snapshot, w int, mode Docke
 	landscapeBW := clamp(lw-(20+utf8.RuneCountInString(ramTail)), 6, 26)
 
 	system := []string{
+		fmt.Sprintf(" %sUptime%s %s%s%s", white, reset, lightGray, dur(s.Uptime), reset),
 		fmt.Sprintf(" %sCPU%s  %s%-5s%s  %s%-4s%s%s[%s]%s", white, reset, tempColor(s.CPUTempC), temp(s.CPUTempC), reset, pctColor(s.CPUUsage, "cpu"), fmt.Sprintf("%d%%", s.CPUUsage), reset, gray, bar(s.CPUUsage, landscapeBW), reset),
 		fmt.Sprintf(" %sGPU%s  %s%-5s%s  %s %sVCN%s %s%s%s", white, reset, lightGray, temp(s.GPUTempC), reset, gpuUsageLabel(s.GPUUsage), white, reset, vcnColor, s.GPUVCN, reset),
 		fmt.Sprintf(" %sRAM%s         %s%-4s%s%s[%s]%s %s%s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray, bar(s.MemPercent, landscapeBW), reset, gray, ramTail, reset),
+	}
+	if s.ZRAMTotalBytes > 0 {
+		zramTail := fmt.Sprintf("%s/%sG", gib(s.ZRAMUsedBytes), gib(s.ZRAMTotalBytes))
+		zramBW := clamp(lw-(20+utf8.RuneCountInString(zramTail)), 6, 26)
+		system = append(system, fmt.Sprintf(" %sZRAM%s        %s%-4s%s%s[%s]%s %s%s%s", white, reset, pctColor(s.ZRAMPercent, "mem"), fmt.Sprintf("%d%%", s.ZRAMPercent), reset, gray, bar(s.ZRAMPercent, zramBW), reset, gray, zramTail, reset))
+	}
+	system = append(system,
+		fmt.Sprintf(" %sSwap%s %s%d%%%s %s%s/%sG%s  %sIOwait%s %s%d%%%s", white, reset, pctColor(s.SwapPercent, "mem"), s.SwapPercent, reset, gray, gib(s.SwapUsedBytes), gib(s.SwapTotalBytes), reset, white, reset, pctColor(s.IOWait, "io"), s.IOWait, reset),
 		fmt.Sprintf(" %sLoad%s %s%s%s %s(%s, %s)%s", white, reset, lightGray, s.Load1, reset, gray, s.Load5, s.Load15, reset),
 		fmt.Sprintf(" %sNet%s  %s%s%s", white, reset, blue, netLabel, reset),
 		fmt.Sprintf(" %sTraffic%s%s%s", white, reset, gray, strings.TrimPrefix(traffic, "Traffic")+reset),
 		fmt.Sprintf(" %sDisk%s%s%s", white, reset, gray, strings.TrimPrefix(dio, "Disk")+reset),
-	}
+	)
 
 	const ramW = 6
 	inner := rw - 2
@@ -144,9 +178,10 @@ func (r Renderer) renderLandscapeInteractive(s model.Snapshot, w int, mode Docke
 
 	add(&b, "")
 
+	pathW, usedW, totalW := landscapeDiskWidths(s.DiskUsage)
 	disks := make([]string, 0, len(s.DiskUsage))
 	for _, d := range s.DiskUsage {
-		disks = append(disks, fmt.Sprintf(" %s%-12s%s %s%s/%s%s %s%d%%%s", lightGray, d.Path, reset, white, humanBytes(d.UsedBytes), humanBytes(d.TotalBytes), reset, pctColor(d.Percent, "disk"), d.Percent, reset))
+		disks = append(disks, fmt.Sprintf(" %s%-*s%s  %s%*s/%*s%s  %s%3d%%%s", lightGray, pathW, trunc(d.Path, pathW), reset, white, usedW, humanBytes(d.UsedBytes), totalW, humanBytes(d.TotalBytes), reset, pctColor(d.Percent, "disk"), d.Percent, reset))
 	}
 
 	health := []string{}

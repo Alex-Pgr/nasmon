@@ -70,3 +70,59 @@ func TestLandscapeInteractiveRowsKeepSameWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestLandscapeInteractiveShowsVerticalSystemMetrics(t *testing.T) {
+	cfg := app.Config{MainInterval: 2 * time.Second, MinTermWidth: 80, RightMargin: 2}
+	r := Renderer{Config: cfg}
+	s := model.Snapshot{
+		Uptime:          4*time.Hour + 12*time.Minute,
+		MemUsedBytes:    5 << 30,
+		MemTotalBytes:   16 << 30,
+		MemPercent:      31,
+		ZRAMUsedBytes:   1 << 30,
+		ZRAMTotalBytes:  4 << 30,
+		ZRAMPercent:     25,
+		SwapUsedBytes:   1 << 30,
+		SwapTotalBytes:  12 << 30,
+		SwapPercent:     8,
+		IOWait:          3,
+	}
+	out := r.RenderInteractive(s, 30, 120, DockerSortDefault)
+	for _, want := range []string{"Uptime", "4h 12m", "ZRAM", "1.0/4.0G", "Swap", "1.0/12.0G", "IOwait", "3%"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("landscape system metric %q missing", want)
+		}
+	}
+}
+
+func TestLandscapeDiskUsageColumnsAlign(t *testing.T) {
+	cfg := app.Config{MainInterval: 2 * time.Second, MinTermWidth: 80, RightMargin: 2}
+	r := Renderer{Config: cfg}
+	s := model.Snapshot{DiskUsage: []model.DiskUsage{
+		{Path: "/", UsedBytes: 9 << 30, TotalBytes: 40 << 30, Percent: 23},
+		{Path: "/mnt/fast", UsedBytes: 123 << 30, TotalBytes: 468 << 30, Percent: 26},
+	}}
+	out := r.RenderInteractive(s, 30, 120, DockerSortDefault)
+
+	var slashCols, pctCols []int
+	for _, raw := range strings.Split(out, "\n") {
+		line := plainTerminalLine(raw)
+		switch {
+		case strings.Contains(line, "9.0G/40.0G"):
+			slashCols = append(slashCols, runeIndex(line, "/40.0G"))
+			pctCols = append(pctCols, runeIndex(line, "23%"))
+		case strings.Contains(line, "123.0G/468.0G"):
+			slashCols = append(slashCols, runeIndex(line, "/468.0G"))
+			pctCols = append(pctCols, runeIndex(line, "26%"))
+		}
+	}
+	if len(slashCols) != 2 || len(pctCols) != 2 {
+		t.Fatalf("disk usage rows not found: slash=%v pct=%v", slashCols, pctCols)
+	}
+	if slashCols[0] != slashCols[1] {
+		t.Fatalf("used/total separators not aligned: %v", slashCols)
+	}
+	if pctCols[0] != pctCols[1] {
+		t.Fatalf("percent columns not aligned: %v", pctCols)
+	}
+}
