@@ -70,6 +70,80 @@ func gpuUsageLabel(usage *int) string {
 	return color + fmt.Sprintf("%-4s", label) + reset
 }
 
+func nthRuneByteIndex(s string, target rune, want int) int {
+	seen := 0
+	for i, r := range s {
+		if r != target {
+			continue
+		}
+		seen++
+		if seen == want {
+			return i
+		}
+	}
+	return -1
+}
+
+func removeSpacesBeforeByteIndex(s string, idx, count int) string {
+	if idx <= 0 || idx > len(s) || count <= 0 {
+		return s
+	}
+	start := idx
+	for start > 0 && idx-start < count && s[start-1] == ' ' {
+		start--
+	}
+	if start == idx {
+		return s
+	}
+	return s[:start] + s[idx:]
+}
+
+// renderLandscape builds fixed-width boxes before adaptive decorations are
+// applied. Keep the box width unchanged when adding GPU usage to that line.
+func decorateLandscapeGPU(line string, usage *int) string {
+	if !strings.Contains(line, "GPU") || !strings.Contains(line, "VCN") {
+		return line
+	}
+	const addedCells = 5 // "%-4s VCN" is five cells wider than "VCN".
+	line = strings.Replace(line, "VCN", gpuUsageLabel(usage)+" VCN", 1)
+	if rightEdge := nthRuneByteIndex(line, '│', 2); rightEdge >= 0 {
+		line = removeSpacesBeforeByteIndex(line, rightEdge, addedCells)
+	}
+	return line
+}
+
+// Docker health suffixes are intentionally hidden in adaptive landscape mode.
+// Removing them after box construction used to pull the right border left, so
+// restore the same number of cells immediately before the final border.
+func cleanLandscapeDockerHealth(line string) string {
+	removed := 0
+	for _, suffix := range []string{" (healthy)", " (unhealthy)", " (health: starting)"} {
+		count := strings.Count(line, suffix)
+		if count == 0 {
+			continue
+		}
+		removed += count * utf8.RuneCountInString(suffix)
+		line = strings.ReplaceAll(line, suffix, "")
+	}
+	if removed == 0 {
+		return line
+	}
+	if rightEdge := strings.LastIndex(line, "│"); rightEdge >= 0 {
+		line = line[:rightEdge] + rep(" ", removed) + line[rightEdge:]
+	}
+	return line
+}
+
+func decorateLandscapeFrame(out string, usage *int) string {
+	lines := strings.SplitAfter(out, "\n")
+	for i, line := range lines {
+		line = decorateLandscapeGPU(line, usage)
+		line = cleanLandscapeDockerHealth(line)
+		lines[i] = line
+	}
+	return strings.Join(lines, "")
+}
+
 func selectDockerContainers(containers []model.Container, limit int) []model.Container {
 	if limit <= 0 {
 		return nil
@@ -307,11 +381,7 @@ func (r Renderer) renderLandscapeAdaptive(s model.Snapshot, w, rows int) string 
 		copySnap.Containers[i].Status = fmt.Sprintf("%s RAM:%s", status, dockerMemoryLabel(copySnap.Containers[i].MemoryBytes))
 	}
 
-	out := r.renderLandscape(copySnap, w)
-	out = strings.Replace(out, "VCN", fmt.Sprintf("%-4s VCN", gpuUsageLabel(copySnap.GPUUsage)), 1)
-	out = strings.ReplaceAll(out, " (healthy)", "")
-	out = strings.ReplaceAll(out, " (unhealthy)", "")
-	out = strings.ReplaceAll(out, " (health: starting)", "")
+	out := decorateLandscapeFrame(r.renderLandscape(copySnap, w), copySnap.GPUUsage)
 	if !compactHeader {
 		return out
 	}
