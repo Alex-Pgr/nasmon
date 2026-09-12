@@ -113,7 +113,8 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode DockerSortMode) string {
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
 	if landscape {
-		return r.renderLandscapeInteractiveAdaptive(s, w, effectiveRows, mode)
+		frame := r.renderLandscapeInteractiveAdaptive(s, w, effectiveRows, mode)
+		return decorateCPUFan(frame, w, s.FanRPM)
 	}
 
 	frame := r.RenderAdaptive(s, rows, cols)
@@ -127,7 +128,8 @@ func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode Docke
 		}
 	}
 	containers = sortDockerContainers(containers, s.Containers, mode)
-	return rewriteDockerTable(frame, w, containers, mode)
+	frame = rewriteDockerTable(frame, w, containers, mode)
+	return decorateCPUFan(frame, w, s.FanRPM)
 }
 
 func rewriteDockerTable(frame string, w int, containers []model.Container, mode DockerSortMode) string {
@@ -190,7 +192,6 @@ func plainTerminalLine(s string) string {
 				if c >= '@' && c <= '~' {
 					break
 				}
-			}
 			continue
 		}
 		if s[i] == '\r' || s[i] == '\n' {
