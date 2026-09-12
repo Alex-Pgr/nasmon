@@ -58,14 +58,16 @@ func fanSuffix(rpm *int) string {
 }
 
 // rewriteRegularProgressLine is safe only for the single-column regular
-// layout: it keeps the original styled prefix up to '[' and rebuilds everything
-// to the right. Unlike the previous implementation it never touches landscape
-// rows that also contain the Docker box.
+// layout: it keeps the original styled prefix up to the real progress bar and
+// rebuilds everything to the right. ANSI escape sequences also contain '[', so
+// match the gray bar marker rather than using the first raw '[' byte.
 func rewriteRegularProgressLine(line string, width, percent int, suffix string) string {
-	open := strings.Index(line, "[")
-	if open < 0 {
+	marker := gray + "["
+	markerAt := strings.Index(line, marker)
+	if markerAt < 0 {
 		return line
 	}
+	open := markerAt + len(gray)
 	newline := ""
 	if strings.HasSuffix(line, "\n") {
 		newline = "\n"
