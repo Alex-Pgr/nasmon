@@ -42,7 +42,10 @@ func nthRuneIndex(s string, target rune, want int) int {
 // visible width of the whole line/content. suffix includes its leading spacing
 // and ANSI styling.
 func fitProgressLine(prefix string, percent int, suffix string, targetWidth int) string {
-	barW := targetWidth - visibleRunes(prefix) - 2 - visibleRunes(suffix) // '[' + ']'
+	// add() prefixes rendered rows with ESC[2K + carriage return. The carriage
+	// return is terminal control, not a visible cell, so measure the prefix after
+	// stripping terminal control sequences instead of counting raw runes.
+	barW := targetWidth - visibleRunes(plainTerminalLine(prefix)) - 2 - visibleRunes(suffix) // '[' + ']'
 	if barW < 1 {
 		barW = 1
 	}
