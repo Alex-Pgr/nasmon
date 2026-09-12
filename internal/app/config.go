@@ -82,7 +82,7 @@ func DefaultConfig() Config {
 		StoragePath:       storage,
 		StateFile:         stateFile,
 		DiskPaths:         []string{"/", "/mnt/ssd", "/mnt/hdd"},
-		RightMargin:       2,
+		RightMargin:       1,
 		MinTermWidth:      36,
 		OneShot:           os.Getenv("NAS_MONITOR_ONESHOT") == "1",
 		ForceCols:         envInt("NAS_FORCE_COLS"),

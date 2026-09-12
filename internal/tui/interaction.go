@@ -112,9 +112,10 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 // containers plus the top RAM consumers regardless of the selected sort mode.
 func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode DockerSortMode) string {
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
+	screenW := w + r.Config.RightMargin
 	if landscape {
 		frame := r.renderLandscapeInteractiveAdaptive(s, w, effectiveRows, mode)
-		return decorateCPUFan(frame, w, s.FanRPM)
+		return decorateSystemBars(frame, screenW, true, s)
 	}
 
 	frame := r.RenderAdaptive(s, rows, cols)
@@ -129,7 +130,7 @@ func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode Docke
 	}
 	containers = sortDockerContainers(containers, s.Containers, mode)
 	frame = rewriteDockerTable(frame, w, containers, mode)
-	return decorateCPUFan(frame, w, s.FanRPM)
+	return decorateSystemBars(frame, screenW, false, s)
 }
 
 func rewriteDockerTable(frame string, w int, containers []model.Container, mode DockerSortMode) string {
