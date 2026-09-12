@@ -38,6 +38,9 @@ func nthRuneIndex(s string, target rune, want int) int {
 	return -1
 }
 
+// padANSI right-aligns a styled value inside a fixed-width column. The column
+// itself always starts at the same place after the progress bar, while values
+// of different lengths still share one right edge.
 func padANSI(s string, w int) string {
 	if w <= 0 {
 		return ""
@@ -45,7 +48,7 @@ func padANSI(s string, w int) string {
 	if visibleRunes(s) > w {
 		return truncANSI(s, w)
 	}
-	return s + rep(" ", w-visibleRunes(s))
+	return rep(" ", w-visibleRunes(s)) + s
 }
 
 func gpuMetric(usage *int) (int, string, string) {
@@ -144,7 +147,6 @@ func decorateRegularSystemBars(frame string, width int, s model.Snapshot) string
 				break
 			}
 		}
-	}
 
 	lines := strings.SplitAfter(frame, "\n")
 	for i, line := range lines {
