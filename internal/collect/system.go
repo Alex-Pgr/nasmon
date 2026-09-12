@@ -219,3 +219,32 @@ func CollectCPUTemp(store *model.Store) {
 		store.Update(func(s *model.Snapshot) { s.CPUTempC = fallback })
 	}
 }
+
+func maxFanRPM(hwmonRoot string) *int {
+	inputs, _ := filepath.Glob(filepath.Join(hwmonRoot, "hwmon*", "fan*_input"))
+	found := false
+	maxRPM := 0
+	for _, in := range inputs {
+		b, err := os.ReadFile(in)
+		if err != nil {
+			continue
+		}
+		rpm, err := strconv.Atoi(strings.TrimSpace(string(b)))
+		if err != nil || rpm < 0 {
+			continue
+		}
+		if !found || rpm > maxRPM {
+			maxRPM = rpm
+			found = true
+		}
+	}
+	if !found {
+		return nil
+	}
+	return &maxRPM
+}
+
+func CollectFanRPM(store *model.Store) {
+	rpm := maxFanRPM("/sys/class/hwmon")
+	store.Update(func(s *model.Snapshot) { s.FanRPM = rpm })
+}
