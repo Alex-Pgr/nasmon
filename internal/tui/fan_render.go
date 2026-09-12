@@ -10,7 +10,7 @@ func fanRPMText(rpm *int) string {
 	if rpm == nil {
 		return ""
 	}
-	return fmt.Sprintf("Fan %drpm", *rpm)
+	return fmt.Sprintf("Fan %d rpm", *rpm)
 }
 
 // decorateCPUFan places the fan reading after the CPU progress bar. Regular
@@ -22,7 +22,7 @@ func decorateCPUFan(frame string, w int, rpm *int) string {
 		return frame
 	}
 	visibleAdded := 1 + utf8.RuneCountInString(text)
-	styled := " " + white + "Fan" + reset + " " + lightGray + fmt.Sprintf("%drpm", *rpm) + reset
+	styled := " " + white + "Fan" + reset + " " + lightGray + fmt.Sprintf("%d rpm", *rpm) + reset
 
 	lines := strings.SplitAfter(frame, "\n")
 	for i, line := range lines {
