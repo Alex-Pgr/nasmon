@@ -38,63 +38,122 @@ func nthRuneIndex(s string, target rune, want int) int {
 	return -1
 }
 
-// fitProgressLine builds the bar at its final width. targetWidth is the desired
-// visible width of the whole line/content. suffix includes its leading spacing
-// and ANSI styling.
-func fitProgressLine(prefix string, percent int, suffix string, targetWidth int) string {
-	// add() prefixes rendered rows with ESC[2K + carriage return. The carriage
-	// return is terminal control, not a visible cell, so measure the prefix after
-	// stripping terminal control sequences instead of counting raw runes.
-	barW := targetWidth - visibleRunes(plainTerminalLine(prefix)) - 2 - visibleRunes(suffix) // '[' + ']'
-	if barW < 1 {
-		barW = 1
-	}
-	return prefix + "[" + metricBar(percent, barW) + "]" + reset + suffix
-}
-
-func fanSuffix(rpm *int) string {
-	text := fanRPMText(rpm)
-	if text == "" {
+func padANSI(s string, w int) string {
+	if w <= 0 {
 		return ""
 	}
-	return " " + gray + text + reset
+	if visibleRunes(s) > w {
+		return truncANSI(s, w)
+	}
+	return s + rep(" ", w-visibleRunes(s))
 }
 
-// rewriteRegularProgressLine is safe only for the single-column regular
-// layout: it keeps the original styled prefix up to the real progress bar and
-// rebuilds everything to the right. ANSI escape sequences also contain '[', so
-// match the gray bar marker rather than using the first raw '[' byte.
-func rewriteRegularProgressLine(line string, width, percent int, suffix string) string {
-	marker := gray + "["
-	markerAt := strings.Index(line, marker)
-	if markerAt < 0 {
-		return line
+func gpuMetric(usage *int) (int, string, string) {
+	if usage == nil {
+		return 0, "N/A", gray
 	}
-	open := markerAt + len(gray)
-	newline := ""
-	if strings.HasSuffix(line, "\n") {
-		newline = "\n"
+	value := clamp(*usage, 0, 100)
+	color := gray
+	switch {
+	case value >= 90:
+		color = orange
+	case value >= 60:
+		color = yellow
+	case value >= 10:
+		color = green
 	}
-	prefix := line[:open]
-	return fitProgressLine(prefix, percent, suffix, width) + newline
+	return value, fmt.Sprintf("%d%%", value), color
 }
 
+func vcnMetricSuffix(vcn string) string {
+	if vcn == "" {
+		vcn = "N/A"
+	}
+	color := gray
+	if vcn == "ACTIVE" {
+		color = green
+	}
+	return white + "VCN " + reset + color + vcn + reset
+}
+
+func systemMetricRows(s model.Snapshot, targetWidth int, landscape bool) []string {
+	lead := white + "│ " + reset
+	labelW := 5
+	suffixW := 16
+	labels := []string{"CPU:", "GPU:", "RAM:", "ZRAM:"}
+	if landscape {
+		lead = " "
+		labelW = 4
+		suffixW = 14
+		labels = []string{"CPU", "GPU", "RAM", "ZRAM"}
+	}
+
+	// All rows share the same fixed prefix and suffix-column width. On a very
+	// narrow terminal shrink the suffix column for every row together, never
+	// independently, so the progress bars remain aligned.
+	prefixCells := visibleRunes(lead) + labelW + 1 + 5 + 2 + 4
+	maxSuffix := targetWidth - prefixCells - 2 - 1 - 4 // brackets, gap, min bar
+	if suffixW > maxSuffix {
+		suffixW = maxSuffix
+	}
+	if suffixW < 6 {
+		suffixW = 6
+	}
+
+	makeRow := func(label, tempText, tempStyle, pctText, pctStyle string, percent int, suffix string) string {
+		prefix := lead + white + fmt.Sprintf("%-*s", labelW, label) + reset + " " +
+			tempStyle + fmt.Sprintf("%-5s", tempText) + reset + "  " +
+			pctStyle + fmt.Sprintf("%-4s", pctText) + reset + gray
+		barW := targetWidth - visibleRunes(prefix) - 2 - 1 - suffixW
+		if barW < 1 {
+			barW = 1
+		}
+		return prefix + "[" + metricBar(percent, barW) + "]" + reset + " " + padANSI(suffix, suffixW)
+	}
+
+	gpuValue, gpuText, gpuColor := gpuMetric(s.GPUUsage)
+	ramSuffix := gray + fmt.Sprintf("%s/%s GiB", gib(s.MemUsedBytes), gib(s.MemTotalBytes)) + reset
+	zramSuffix := gray + fmt.Sprintf("%s/%s GiB", gib(s.ZRAMUsedBytes), gib(s.ZRAMTotalBytes)) + reset
+	if landscape {
+		ramSuffix = gray + fmt.Sprintf("%s/%sG", gib(s.MemUsedBytes), gib(s.MemTotalBytes)) + reset
+		zramSuffix = gray + fmt.Sprintf("%s/%sG", gib(s.ZRAMUsedBytes), gib(s.ZRAMTotalBytes)) + reset
+	}
+
+	rows := []string{
+		makeRow(labels[0], temp(s.CPUTempC), tempColor(s.CPUTempC), fmt.Sprintf("%d%%", s.CPUUsage), pctColor(s.CPUUsage, "cpu"), s.CPUUsage, gray+fanRPMText(s.FanRPM)+reset),
+		makeRow(labels[1], temp(s.GPUTempC), lightGray, gpuText, gpuColor, gpuValue, vcnMetricSuffix(s.GPUVCN)),
+		makeRow(labels[2], "", reset, fmt.Sprintf("%d%%", s.MemPercent), pctColor(s.MemPercent, "mem"), s.MemPercent, ramSuffix),
+	}
+	if s.ZRAMTotalBytes > 0 {
+		rows = append(rows, makeRow(labels[3], "", reset, fmt.Sprintf("%d%%", s.ZRAMPercent), pctColor(s.ZRAMPercent, "mem"), s.ZRAMPercent, zramSuffix))
+	}
+	return rows
+}
+
+// Regular mode is rendered as a single column. Replace the four System metric
+// rows as a group so CPU/GPU/RAM/ZRAM share one grid: identical bar start/end
+// and an identical one-cell gap before the fixed suffix column.
 func decorateRegularSystemBars(frame string, width int, s model.Snapshot) string {
+	metrics := systemMetricRows(s, width, false)
+	byLabel := map[string]string{}
+	for _, row := range metrics {
+		plain := plainTerminalLine(row)
+		for _, label := range []string{"CPU:", "GPU:", "RAM:", "ZRAM:"} {
+			if strings.Contains(plain, "│ "+label) {
+				byLabel[label] = row
+				break
+			}
+		}
+	}
+
 	lines := strings.SplitAfter(frame, "\n")
 	for i, line := range lines {
 		plain := plainTerminalLine(line)
-		if !strings.Contains(plain, "[") || !strings.Contains(plain, "]") {
-			continue
-		}
-		switch {
-		case strings.Contains(plain, "ZRAM:"):
-			tail := " " + gray + fmt.Sprintf("%s/%s GiB", gib(s.ZRAMUsedBytes), gib(s.ZRAMTotalBytes)) + reset
-			lines[i] = rewriteRegularProgressLine(line, width, s.ZRAMPercent, tail)
-		case strings.Contains(plain, "RAM:"):
-			tail := " " + gray + fmt.Sprintf("%s/%s GiB", gib(s.MemUsedBytes), gib(s.MemTotalBytes)) + reset
-			lines[i] = rewriteRegularProgressLine(line, width, s.MemPercent, tail)
-		case strings.Contains(plain, "CPU:"):
-			lines[i] = rewriteRegularProgressLine(line, width, s.CPUUsage, fanSuffix(s.FanRPM))
+		for label, row := range byLabel {
+			if strings.Contains(plain, "│ "+label) {
+				lines[i] = terminalFrameLine(row)
+				break
+			}
 		}
 	}
 	return strings.Join(lines, "")
