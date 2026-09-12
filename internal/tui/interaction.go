@@ -192,6 +192,7 @@ func plainTerminalLine(s string) string {
 				if c >= '@' && c <= '~' {
 					break
 				}
+			}
 			continue
 		}
 		if s[i] == '\r' || s[i] == '\n' {
