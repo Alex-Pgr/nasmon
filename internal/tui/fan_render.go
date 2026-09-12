@@ -147,6 +147,7 @@ func decorateRegularSystemBars(frame string, width int, s model.Snapshot) string
 				break
 			}
 		}
+	}
 
 	lines := strings.SplitAfter(frame, "\n")
 	for i, line := range lines {
