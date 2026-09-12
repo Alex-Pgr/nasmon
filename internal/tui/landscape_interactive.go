@@ -112,19 +112,27 @@ func (r Renderer) renderLandscapeInteractive(s model.Snapshot, w int, mode Docke
 	if s.GPUVCN == "ACTIVE" {
 		vcnColor = green
 	}
+
+	// boxLine has an inner width of lw-2. Build the progress rows one cell
+	// shorter than that so their right-hand label is followed by exactly one
+	// blank before the System box border.
+	metricWidth := lw - 3
+	cpuPrefix := fmt.Sprintf(" %sCPU%s  %s%-5s%s  %s%-4s%s%s", white, reset, tempColor(s.CPUTempC), temp(s.CPUTempC), reset, pctColor(s.CPUUsage, "cpu"), fmt.Sprintf("%d%%", s.CPUUsage), reset, gray)
+	cpuLine := fitProgressLine(cpuPrefix, s.CPUUsage, fanSuffix(s.FanRPM), metricWidth)
 	ramTail := fmt.Sprintf("%s/%sG", gib(s.MemUsedBytes), gib(s.MemTotalBytes))
-	landscapeBW := clamp(lw-(20+utf8.RuneCountInString(ramTail)), 6, 26)
+	ramPrefix := fmt.Sprintf(" %sRAM%s         %s%-4s%s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray)
+	ramLine := fitProgressLine(ramPrefix, s.MemPercent, " "+gray+ramTail+reset, metricWidth)
 
 	system := []string{
 		fmt.Sprintf(" %sUptime%s %s%s%s", white, reset, lightGray, dur(s.Uptime), reset),
-		fmt.Sprintf(" %sCPU%s  %s%-5s%s  %s%-4s%s%s[%s]%s", white, reset, tempColor(s.CPUTempC), temp(s.CPUTempC), reset, pctColor(s.CPUUsage, "cpu"), fmt.Sprintf("%d%%", s.CPUUsage), reset, gray, bar(s.CPUUsage, landscapeBW), reset),
+		cpuLine,
 		fmt.Sprintf(" %sGPU%s  %s%-5s%s  %s %sVCN%s %s%s%s", white, reset, lightGray, temp(s.GPUTempC), reset, gpuUsageLabel(s.GPUUsage), white, reset, vcnColor, s.GPUVCN, reset),
-		fmt.Sprintf(" %sRAM%s         %s%-4s%s%s[%s]%s %s%s%s", white, reset, pctColor(s.MemPercent, "mem"), fmt.Sprintf("%d%%", s.MemPercent), reset, gray, bar(s.MemPercent, landscapeBW), reset, gray, ramTail, reset),
+		ramLine,
 	}
 	if s.ZRAMTotalBytes > 0 {
 		zramTail := fmt.Sprintf("%s/%sG", gib(s.ZRAMUsedBytes), gib(s.ZRAMTotalBytes))
-		zramBW := clamp(lw-(20+utf8.RuneCountInString(zramTail)), 6, 26)
-		system = append(system, fmt.Sprintf(" %sZRAM%s        %s%-4s%s%s[%s]%s %s%s%s", white, reset, pctColor(s.ZRAMPercent, "mem"), fmt.Sprintf("%d%%", s.ZRAMPercent), reset, gray, bar(s.ZRAMPercent, zramBW), reset, gray, zramTail, reset))
+		zramPrefix := fmt.Sprintf(" %sZRAM%s        %s%-4s%s%s", white, reset, pctColor(s.ZRAMPercent, "mem"), fmt.Sprintf("%d%%", s.ZRAMPercent), reset, gray)
+		system = append(system, fitProgressLine(zramPrefix, s.ZRAMPercent, " "+gray+zramTail+reset, metricWidth))
 	}
 	system = append(system,
 		fmt.Sprintf(" %sSwap%s %s%d%%%s %s%s/%sG%s  %sIOwait%s %s%d%%%s", white, reset, pctColor(s.SwapPercent, "mem"), s.SwapPercent, reset, gray, gib(s.SwapUsedBytes), gib(s.SwapTotalBytes), reset, white, reset, pctColor(s.IOWait, "io"), s.IOWait, reset),
