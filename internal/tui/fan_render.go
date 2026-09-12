@@ -23,6 +23,21 @@ func metricBar(p, w int) string {
 	return rep("█", filled) + rep("░", w-filled)
 }
 
+func nthRuneIndex(s string, target rune, want int) int {
+	seen := 0
+	idx := 0
+	for _, r := range s {
+		if r == target {
+			seen++
+			if seen == want {
+				return idx
+			}
+		}
+		idx++
+	}
+	return -1
+}
+
 // fitProgressLine builds the bar at its final width. targetWidth is the desired
 // visible width of the whole line/content. suffix includes its leading spacing
 // and ANSI styling.
