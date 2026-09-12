@@ -16,7 +16,7 @@ func TestRenderInteractiveShowsFanRPMRegular(t *testing.T) {
 	s := model.Snapshot{FanRPM: &rpm, MemTotalBytes: 16 << 30, MemUsedBytes: 4 << 30}
 
 	out := r.RenderInteractive(s, 60, 60, DockerSortDefault)
-	if !strings.Contains(plainTerminalLine(out), "Fan 2200rpm") {
+	if !strings.Contains(plainTerminalLine(out), "Fan 2200 rpm") {
 		t.Fatalf("regular fan RPM missing")
 	}
 }
@@ -33,7 +33,7 @@ func TestRenderInteractiveShowsFanRPMWithoutBreakingLandscapeWidth(t *testing.T)
 		if !strings.Contains(line, "CPU") {
 			continue
 		}
-		if !strings.Contains(line, "Fan 2200rpm") {
+		if !strings.Contains(line, "Fan 2200 rpm") {
 			t.Fatalf("landscape fan RPM missing: %q", line)
 		}
 		if got := len([]rune(line)); got != 118 {
