@@ -14,8 +14,8 @@ func fanRPMText(rpm *int) string {
 }
 
 // decorateCPUFan places the fan reading after the CPU progress bar. Regular
-// layout has no right box border; landscape consumes existing padding before
-// the left box's closing border so the two-column geometry stays unchanged.
+// layout has no right box border. Landscape first consumes box padding and, if
+// needed, shortens only the CPU bar so the two-column geometry never moves.
 func decorateCPUFan(frame string, w int, rpm *int) string {
 	text := fanRPMText(rpm)
 	if text == "" {
@@ -31,32 +31,53 @@ func decorateCPUFan(frame string, w int, rpm *int) string {
 			continue
 		}
 
-		closeBar := strings.Index(line, "]")
-		if closeBar < 0 {
-			continue
-		}
-		insertAt := closeBar + 1
-
 		if strings.Count(plain, "│") >= 2 {
+			original := line
 			rightEdge := nthRuneByteIndex(line, '│', 2)
-			if rightEdge <= insertAt {
+			closeBar := strings.Index(line, "]")
+			if rightEdge <= closeBar || closeBar < 0 {
 				continue
 			}
+
 			start := rightEdge
-			removed := 0
-			for start > insertAt && removed < visibleAdded && line[start-1] == ' ' {
+			padding := 0
+			for start > closeBar+1 && padding < visibleAdded && line[start-1] == ' ' {
 				start--
-				removed++
-			}
-			if removed != visibleAdded {
-				continue
+				padding++
 			}
 			line = line[:start] + line[rightEdge:]
-		} else if utf8.RuneCountInString(plain)+visibleAdded > w {
-			continue
+			remaining := visibleAdded - padding
+
+			for remaining > 0 {
+				closeBar = strings.Index(line, "]")
+				if closeBar <= 0 {
+					line = original
+					break
+				}
+				rn, size := utf8.DecodeLastRuneInString(line[:closeBar])
+				if size <= 0 || rn == '[' {
+					line = original
+					break
+				}
+				line = line[:closeBar-size] + line[closeBar:]
+				remaining--
+			}
+			if line == original {
+				continue
+			}
+			closeBar = strings.Index(line, "]")
+			line = line[:closeBar+1] + styled + line[closeBar+1:]
+		} else {
+			if utf8.RuneCountInString(plain)+visibleAdded > w {
+				continue
+			}
+			closeBar := strings.Index(line, "]")
+			if closeBar < 0 {
+				continue
+			}
+			line = line[:closeBar+1] + styled + line[closeBar+1:]
 		}
 
-		line = line[:insertAt] + styled + line[insertAt:]
 		lines[i] = line
 		break
 	}
