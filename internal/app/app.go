@@ -94,7 +94,7 @@ func (a *App) collectSystemd() {
 }
 
 func (a *App) collectDiskTemps() {
-	devs := a.Disk.HealthDevices()
+	devs := a.Disk.SMARTDevices()
 	enabled := len(devs) > 0
 	success := false
 	if enabled {
@@ -104,7 +104,7 @@ func (a *App) collectDiskTemps() {
 }
 
 func (a *App) collectSMART() {
-	devs := a.Disk.HealthDevices()
+	devs := a.Disk.SMARTDevices()
 	enabled := len(devs) > 0
 	success := false
 	if enabled {

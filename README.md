@@ -28,6 +28,8 @@ Host-specific settings belong in `/etc/nasmon/nasmon.env`, not in the source tre
 
 ## Build
 
+Go 1.23 or newer is required when building from source.
+
 ```bash
 CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o nasmon ./cmd/nasmon
 CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o nasmond ./cmd/nasmond
@@ -52,6 +54,14 @@ The optional positional number controls the TUI refresh/read interval (and the c
 nasmon 5
 nasmon --standalone 5
 ```
+
+## ARM SBC support
+
+CI cross-builds both binaries for Linux `arm64` and Linux `arm` with `GOARM=7`, in addition to the normal amd64 build. The intended SBC targets include 64-bit Raspberry Pi OS and Armbian/Ubuntu installations on Raspberry Pi and Orange Pi; armv7 remains compile-supported for older 32-bit Raspberry Pi systems.
+
+CPU temperature prefers the x86 `coretemp`/`k10temp` hwmon drivers when present, then uses Linux thermal zones whose type identifies a CPU/SoC/package sensor. This covers the common Raspberry Pi and Orange Pi thermal-zone layout without accidentally treating a GPU/DDR sensor as CPU temperature. Generic hwmon remains the final fallback.
+
+microSD/eMMC devices such as `mmcblk0` remain visible for disk usage, identity, and I/O, but are not sent to `smartctl`, because Linux MMC devices normally do not implement ATA/NVMe SMART. SATA/USB-SATA/NVMe devices continue to use the regular SMART pipeline.
 
 ## Doctor
 
@@ -135,7 +145,7 @@ Run the installer as your normal login user from the repository root:
 ./install.sh
 ```
 
-The installer fails fast, runs `go test ./...`, builds static `nasmon` and `nasmond` binaries, installs them into `/usr/local/bin`, installs `/etc/systemd/system/nasmond.service`, runs `systemctl daemon-reload`, enables the service, restarts it, and verifies that it becomes active. Privileged installation steps use `sudo`; the Go build itself runs as the invoking user.
+The installer fails fast, requires Go 1.23 or newer, runs `go test ./...`, builds static `nasmon` and `nasmond` binaries for the host architecture, installs them into `/usr/local/bin`, installs `/etc/systemd/system/nasmond.service`, runs `systemctl daemon-reload`, enables the service, restarts it, and verifies that it becomes active. Privileged installation steps use `sudo`; the Go build itself runs as the invoking user.
 
 It also installs the current configuration template as:
 
