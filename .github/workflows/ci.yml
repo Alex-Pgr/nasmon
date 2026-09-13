@@ -27,7 +27,7 @@ jobs:
         run: bash -n install.sh
 
       - name: Check formatting
-        run: gofmt -l . | tee /tmp/gofmt.out; test ! -s /tmp/gofmt.out
+        run: test -z "$(gofmt -l .)"
 
       - name: Run vet
         run: go vet ./...
