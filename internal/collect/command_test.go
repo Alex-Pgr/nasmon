@@ -7,7 +7,7 @@ import (
 
 func TestCommandCombinedOutputTimeout(t *testing.T) {
 	start := time.Now()
-	_, err := commandCombinedOutputTimeout(50*time.Millisecond, "sh", "-c", "sleep 5")
+	_, err := commandCombinedOutputTimeout(50*time.Millisecond, "sh", "-c", "exec sleep 5")
 	if err == nil {
 		t.Fatalf("timed command unexpectedly succeeded")
 	}
