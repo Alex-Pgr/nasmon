@@ -36,9 +36,10 @@ func landscapeDiskWidths(usage []model.DiskUsage) (pathW, usedW, totalW int) {
 // renderLandscape selects the visible Docker subset before sorting, then lays
 // out the already-built section rows without post-render ANSI rewriting.
 func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSortMode) string {
+	healthRows := len(buildHealthRows(s, true)) + len(r.collectorWarningRows(s, true))
 	lowerRows := len(s.DiskUsage)
-	if h := 1 + len(s.DiskHealth); h > lowerRows {
-		lowerRows = h
+	if healthRows > lowerRows {
+		lowerRows = healthRows
 	}
 
 	upperRows := landscapeSystemRows(s)
@@ -95,7 +96,8 @@ func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode) 
 		upperRows = len(docker)
 	}
 	leftUpper := makeBox(lw, "System", system, upperRows)
-	rightUpper := makeBox(rw, "Docker", docker, upperRows)
+	dockerTitle := "Docker" + collectorTitleSuffix(s.DockerCollector, r.Config.DockerInterval)
+	rightUpper := makeBox(rw, dockerTitle, docker, upperRows)
 	for _, row := range composeBoxRows(leftUpper, rightUpper, lw, rw, gap) {
 		add(&b, white+row+reset)
 	}
@@ -103,7 +105,8 @@ func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode) 
 	add(&b, "")
 
 	disks := buildDiskRows(s.DiskUsage, true)
-	health := buildHealthRows(s, true)
+	health := r.collectorWarningRows(s, true)
+	health = append(health, buildHealthRows(s, true)...)
 	lowerRows := len(disks)
 	if len(health) > lowerRows {
 		lowerRows = len(health)
