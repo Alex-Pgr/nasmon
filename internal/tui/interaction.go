@@ -161,18 +161,17 @@ func terminalFrameLine(content string) string {
 }
 
 func dockerSortHeader(lines []string, y int) (string, bool) {
-	for delta := 0; delta <= 2; delta++ {
-		for _, candidate := range []int{y - delta, y + delta} {
-			if candidate < 1 || candidate > len(lines) || (delta == 0 && candidate == y+delta) {
-				continue
-			}
-			line := lines[candidate-1]
-			nameAt := cellIndex(line, "NAMES")
-			ramAt := cellIndex(line, "RAM")
-			statusAt := cellIndex(line, "STATUS")
-			if nameAt >= 0 && ramAt > nameAt && statusAt > ramAt {
-				return line, true
-			}
+	for _, offset := range []int{0, -1, 1, -2, 2} {
+		candidate := y + offset
+		if candidate < 1 || candidate > len(lines) {
+			continue
+		}
+		line := lines[candidate-1]
+		nameAt := cellIndex(line, "NAMES")
+		ramAt := cellIndex(line, "RAM")
+		statusAt := cellIndex(line, "STATUS")
+		if nameAt >= 0 && ramAt > nameAt && statusAt > ramAt {
+			return line, true
 		}
 	}
 	return "", false
