@@ -8,6 +8,8 @@ import (
 	"nasmon/internal/model"
 )
 
+const ultraCompactMaxRows = 16
+
 func landscapeSystemRows(s model.Snapshot) int {
 	rows := 9 // uptime, CPU, GPU, RAM, swap, load, net, traffic, disk
 	if s.ZRAMTotalBytes > 0 {
@@ -50,6 +52,52 @@ func dockerViewportTitle(total, offset, visible int) string {
 		suffix = " ↓"
 	}
 	return fmt.Sprintf("Docker %s%d–%d/%d%s", prefix, start, end, total, suffix)
+}
+
+func ultraCompactDockerPageSize(total, rows int) int {
+	page := rows - 5 // title + summary + Docker box top/header/bottom
+	if page < 0 {
+		page = 0
+	}
+	if page > total {
+		page = total
+	}
+	return page
+}
+
+func ultraCompactSummary(s model.Snapshot) string {
+	ram := fmt.Sprintf("%.1f/%.1fG", float64(s.MemUsedBytes)/(1<<30), float64(s.MemTotalBytes)/(1<<30))
+	swap := "-"
+	if s.SwapTotalBytes > 0 {
+		swap = fmt.Sprintf("%.1f/%.1fG", float64(s.SwapUsedBytes)/(1<<30), float64(s.SwapTotalBytes)/(1<<30))
+	}
+	return fmt.Sprintf("CPU %d%%   RAM %s   SWAP %s", s.CPUUsage, ram, swap)
+}
+
+func (r Renderer) renderUltraCompact(s model.Snapshot, w, rows int, mode DockerSortMode, dockerOffset int) string {
+	page := ultraCompactDockerPageSize(len(s.Containers), rows)
+	sorted := sortDockerContainers(s.Containers, s.Containers, mode)
+	offset := ClampDockerOffset(dockerOffset, len(sorted), page)
+	visible := sorted
+	if page < len(sorted) {
+		if page > 0 {
+			visible = sorted[offset : offset+page]
+		} else {
+			visible = nil
+		}
+	}
+
+	var b strings.Builder
+	title := fmt.Sprintf("NAS Health Monitor %s", r.Config.MainInterval) + staleSuffix(s)
+	add(&b, cyan+center(title, w)+reset)
+	add(&b, white+center(ultraCompactSummary(s), w)+reset)
+
+	docker := buildDockerRows(visible, w-2, true, mode)
+	dockerTitle := dockerViewportTitle(len(s.Containers), offset, len(visible)) + collectorTitleSuffix(s.DockerCollector, r.Config.DockerInterval)
+	for _, row := range makeBox(w, dockerTitle, docker, len(docker)) {
+		add(&b, white+row+reset)
+	}
+	return b.String()
 }
 
 func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSortMode, dockerOffset int) string {
