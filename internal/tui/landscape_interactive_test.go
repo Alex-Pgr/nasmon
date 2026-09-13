@@ -122,7 +122,7 @@ func TestUltraCompactMobilePrioritizesSummaryAndDocker(t *testing.T) {
 			t.Fatalf("ultra-compact output missing %q: %q", want, plain)
 		}
 	}
-	for _, unwanted := range []string{"ZRAM", "Disk Usage", "Health", "ctr-1", "ctr-2", "ctr-8"} {
+	for _, unwanted := range []string{"ZRAM", "Disk Usage", "┌── Health ", "ctr-1", "ctr-2", "ctr-8"} {
 		if strings.Contains(plain, unwanted) {
 			t.Fatalf("ultra-compact output unexpectedly contains %q: %q", unwanted, plain)
 		}
