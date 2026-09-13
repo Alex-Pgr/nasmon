@@ -18,9 +18,15 @@ type App struct {
 }
 
 func New(cfg Config) *App {
+	store := model.NewStore(time.Now(), cfg.StoragePath)
+	store.Update(func(s *model.Snapshot) {
+		s.DockerCollector.Enabled = true
+		s.GPUCollector.Enabled = cfg.GPUHelper != ""
+		s.SystemdCollector.Enabled = true
+	})
 	return &App{
 		Config:  cfg,
-		Store:   model.NewStore(time.Now(), cfg.StoragePath),
+		Store:   store,
 		CPU:     &collect.CPUCollector{},
 		Net:     collect.NewNetworkCollector(cfg.Interface),
 		Disk:    collect.NewDiskCollector(cfg.DiskPaths, cfg.StoragePath),
@@ -35,7 +41,10 @@ func (a *App) ping() {
 	}
 }
 
-func periodic(ctx context.Context, d time.Duration, fn func()) {
+func periodic(ctx context.Context, d time.Duration, immediate bool, fn func()) {
+	if immediate {
+		fn()
+	}
 	t := time.NewTicker(d)
 	defer t.Stop()
 	for {
@@ -48,8 +57,65 @@ func periodic(ctx context.Context, d time.Duration, fn func()) {
 	}
 }
 
-// Bootstrap mirrors the old Bash behavior: collect a coherent first snapshot
-// before the first frame is drawn. After that every collector runs independently.
+func recordCollector(store *model.Store, enabled, success bool, pick func(*model.Snapshot) *model.CollectorStatus) {
+	now := time.Now()
+	store.Update(func(s *model.Snapshot) {
+		status := pick(s)
+		status.Enabled = enabled
+		if !enabled {
+			status.LastAttempt = time.Time{}
+			status.LastSuccess = time.Time{}
+			return
+		}
+		status.LastAttempt = now
+		if success {
+			status.LastSuccess = now
+		}
+	})
+}
+
+func (a *App) collectGPU() {
+	enabled := a.Config.GPUHelper != ""
+	success := false
+	if enabled {
+		success = collect.CollectGPU(a.Config.GPUHelper, a.Store)
+	}
+	recordCollector(a.Store, enabled, success, func(s *model.Snapshot) *model.CollectorStatus { return &s.GPUCollector })
+}
+
+func (a *App) collectDocker() {
+	success := collect.CollectDocker(a.Store)
+	recordCollector(a.Store, true, success, func(s *model.Snapshot) *model.CollectorStatus { return &s.DockerCollector })
+}
+
+func (a *App) collectSystemd() {
+	success := collect.CollectSystemd(a.Store)
+	recordCollector(a.Store, true, success, func(s *model.Snapshot) *model.CollectorStatus { return &s.SystemdCollector })
+}
+
+func (a *App) collectDiskTemps() {
+	devs := a.Disk.HealthDevices()
+	enabled := len(devs) > 0
+	success := false
+	if enabled {
+		success = collect.CollectDiskTemps(devs, a.Config.DiskQuietWindow, a.Store)
+	}
+	recordCollector(a.Store, enabled, success, func(s *model.Snapshot) *model.CollectorStatus { return &s.DiskTempCollector })
+}
+
+func (a *App) collectSMART() {
+	devs := a.Disk.HealthDevices()
+	enabled := len(devs) > 0
+	success := false
+	if enabled {
+		success = collect.CollectSMART(devs, a.Config.DiskQuietWindow, a.Store)
+	}
+	recordCollector(a.Store, enabled, success, func(s *model.Snapshot) *model.CollectorStatus { return &s.SMARTCollector })
+}
+
+// Bootstrap collects only cheap local metrics. External commands and Docker
+// API calls start asynchronously in Start so a slow or unavailable optional
+// integration cannot delay daemon startup or the first standalone TUI frame.
 func (a *App) Bootstrap() {
 	a.CPU.Collect(a.Store)
 	collect.CollectMemory(a.Store)
@@ -61,13 +127,7 @@ func (a *App) Bootstrap() {
 	a.Disk.CollectUsage(a.Store)
 	a.Disk.CollectIO(a.Store)
 	collect.RefreshDiskActivity(a.Disk.Devices())
-	collect.CollectGPU(a.Config.GPUHelper, a.Store)
 	collect.CollectGPUUsage(a.Store)
-	collect.CollectDiskTemps(a.Disk.HealthDevices(), a.Config.DiskQuietWindow, a.Store)
-	collect.CollectSMART(a.Disk.HealthDevices(), a.Config.DiskQuietWindow, a.Store)
-	collect.CollectDiskPowerState(a.Disk.HealthDevices(), a.Store)
-	collect.CollectDocker(a.Store)
-	collect.CollectSystemd(a.Store)
 }
 
 func (a *App) Start(ctx context.Context) {
@@ -83,25 +143,21 @@ func (a *App) Start(ctx context.Context) {
 		collect.RefreshDiskActivity(a.Disk.Devices())
 		a.ping()
 	}
-	go periodic(ctx, a.Config.MainInterval, main)
-	go periodic(ctx, a.Config.IPInterval, func() { a.Net.CollectIP(a.Store); a.ping() })
-	go periodic(ctx, a.Config.GPUInterval, func() { collect.CollectGPU(a.Config.GPUHelper, a.Store); a.ping() })
-	go periodic(ctx, a.Config.DiskInterval, func() {
+	go periodic(ctx, a.Config.MainInterval, false, main)
+	go periodic(ctx, a.Config.IPInterval, false, func() { a.Net.CollectIP(a.Store); a.ping() })
+	if a.Config.GPUHelper != "" {
+		go periodic(ctx, a.Config.GPUInterval, true, func() { a.collectGPU(); a.ping() })
+	}
+	go periodic(ctx, a.Config.DiskInterval, false, func() {
 		a.Disk.CollectUsage(a.Store)
 		a.ping()
 	})
-	go periodic(ctx, a.Config.DiskPowerInterval, func() {
+	go periodic(ctx, a.Config.DiskPowerInterval, true, func() {
 		collect.CollectDiskPowerState(a.Disk.HealthDevices(), a.Store)
 		a.ping()
 	})
-	go periodic(ctx, a.Config.DiskTempInterval, func() {
-		collect.CollectDiskTemps(a.Disk.HealthDevices(), a.Config.DiskQuietWindow, a.Store)
-		a.ping()
-	})
-	go periodic(ctx, a.Config.SMARTInterval, func() {
-		collect.CollectSMART(a.Disk.HealthDevices(), a.Config.DiskQuietWindow, a.Store)
-		a.ping()
-	})
-	go periodic(ctx, a.Config.DockerInterval, func() { collect.CollectDocker(a.Store); a.ping() })
-	go periodic(ctx, a.Config.SystemdInterval, func() { collect.CollectSystemd(a.Store); a.ping() })
+	go periodic(ctx, a.Config.DiskTempInterval, true, func() { a.collectDiskTemps(); a.ping() })
+	go periodic(ctx, a.Config.SMARTInterval, true, func() { a.collectSMART(); a.ping() })
+	go periodic(ctx, a.Config.DockerInterval, true, func() { a.collectDocker(); a.ping() })
+	go periodic(ctx, a.Config.SystemdInterval, true, func() { a.collectSystemd(); a.ping() })
 }
