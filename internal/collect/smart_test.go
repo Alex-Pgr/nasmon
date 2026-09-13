@@ -2,6 +2,7 @@ package collect
 
 import (
 	"testing"
+	"time"
 
 	"nasmon/internal/model"
 )
@@ -46,5 +47,42 @@ func TestNVMeHealthWarning(t *testing.T) {
 		if !nvmeHealthWarning(h) {
 			t.Fatalf("case %d should be warning: %+v", i, h)
 		}
+	}
+}
+
+func TestDiskHealthCollectorsMergeOnlyOwnedFields(t *testing.T) {
+	store := model.NewStore(time.Now(), "/")
+	store.Update(func(s *model.Snapshot) {
+		s.DiskHealth = []model.DiskHealth{{
+			Device:      "sda",
+			Temperature: "41°C",
+			Health:      "OK",
+			Sleeping:    false,
+			Reallocated: 2,
+		}}
+	})
+
+	mergeDiskHealth(store, []string{"sda"}, map[string]model.DiskHealth{
+		"sda": {Sleeping: true, Temperature: "99°C", Health: "WARN", Reallocated: 99},
+	}, mergePowerHealth)
+	h := store.Snapshot().DiskHealth[0]
+	if !h.Sleeping || h.Temperature != "41°C" || h.Health != "OK" || h.Reallocated != 2 {
+		t.Fatalf("power merge overwrote unrelated fields: %+v", h)
+	}
+
+	mergeDiskHealth(store, []string{"sda"}, map[string]model.DiskHealth{
+		"sda": {Temperature: "44°C", Health: "WARN", Sleeping: false, Reallocated: 99},
+	}, mergeTemperatureHealth)
+	h = store.Snapshot().DiskHealth[0]
+	if h.Temperature != "44°C" || !h.Sleeping || h.Health != "OK" || h.Reallocated != 2 {
+		t.Fatalf("temperature merge overwrote unrelated fields: %+v", h)
+	}
+
+	mergeDiskHealth(store, []string{"sda"}, map[string]model.DiskHealth{
+		"sda": {Health: "WARN", Reallocated: 7, Temperature: "12°C", Sleeping: false},
+	}, mergeSMARTHealth)
+	h = store.Snapshot().DiskHealth[0]
+	if h.Health != "WARN" || h.Reallocated != 7 || h.Temperature != "44°C" || !h.Sleeping {
+		t.Fatalf("SMART merge overwrote unrelated fields: %+v", h)
 	}
 }
