@@ -58,6 +58,7 @@ func mountForPath(path string, mounts []mountInfo) (mountInfo, bool) {
 				bm = m
 			}
 		}
+	}
 	return bm, best >= 0
 }
 
