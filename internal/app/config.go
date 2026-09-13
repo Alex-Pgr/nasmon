@@ -13,6 +13,8 @@ const DefaultConfigFile = "/etc/nasmon/nasmon.env"
 
 type Config struct {
 	MainInterval      time.Duration
+	StateInterval     time.Duration
+	ThermalInterval   time.Duration
 	GPUInterval       time.Duration
 	DockerInterval    time.Duration
 	DiskInterval      time.Duration
@@ -140,6 +142,8 @@ func configFromLookup(lookup configLookup) Config {
 
 	return Config{
 		MainInterval:      envDuration(lookup, "MAIN_INTERVAL", 2*time.Second),
+		StateInterval:     envDuration(lookup, "STATE_INTERVAL", 5*time.Second),
+		ThermalInterval:   envDuration(lookup, "THERMAL_INTERVAL", 10*time.Second),
 		GPUInterval:       envDuration(lookup, "GPU_INTERVAL", 10*time.Second),
 		DockerInterval:    envDuration(lookup, "DOCKER_INTERVAL", 30*time.Second),
 		DiskInterval:      envDuration(lookup, "DISK_LAYOUT_INTERVAL", 15*time.Second),
@@ -147,7 +151,7 @@ func configFromLookup(lookup configLookup) Config {
 		DiskTempInterval:  envDuration(lookup, "DISK_TEMP_INTERVAL", 15*time.Minute),
 		DiskQuietWindow:   envDuration(lookup, "DISK_QUIET_WINDOW", 5*time.Minute),
 		SMARTInterval:     envDuration(lookup, "SMART_INTERVAL", time.Hour),
-		SystemdInterval:   envDuration(lookup, "SYSTEMD_INTERVAL", 30*time.Second),
+		SystemdInterval:   envDuration(lookup, "SYSTEMD_INTERVAL", 60*time.Second),
 		IPInterval:        envDuration(lookup, "IP_INTERVAL", 60*time.Second),
 		Interface:         iface,
 		GPUHelper:         helper,
