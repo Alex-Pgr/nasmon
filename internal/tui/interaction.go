@@ -3,7 +3,6 @@ package tui
 import (
 	"sort"
 	"strings"
-	"unicode/utf8"
 
 	"nasmon/internal/model"
 )
@@ -70,8 +69,6 @@ func sortDockerContainers(containers, original []model.Container, mode DockerSor
 			return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 		})
 	default:
-		// The daemon snapshot is already in nasmon's default Compose-project /
-		// container-name order. Restore that order for a compact subset too.
 		order := make(map[string]int, len(original))
 		for i, c := range original {
 			order[containerSortKey(c)] = i
@@ -106,9 +103,6 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 	return rows, draw, rows <= 30 && cols >= 80
 }
 
-// RenderInteractive is the single TUI render entry point. Both layouts compose
-// section rows directly; neither path parses or rewrites an already-rendered
-// ANSI frame.
 func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode DockerSortMode) string {
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
 	if landscape {
@@ -119,42 +113,6 @@ func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode Docke
 
 func terminalFrameLine(content string) string {
 	return "\033[2K\r" + content + "\n"
-}
-
-func plainTerminalLine(s string) string {
-	var b strings.Builder
-	for i := 0; i < len(s); {
-		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
-			i += 2
-			for i < len(s) {
-				c := s[i]
-				i++
-				if c >= '@' && c <= '~' {
-					break
-				}
-			}
-			continue
-		}
-		if s[i] == '\r' || s[i] == '\n' {
-			i++
-			continue
-		}
-		rn, size := utf8.DecodeRuneInString(s[i:])
-		if size == 0 {
-			break
-		}
-		b.WriteRune(rn)
-		i += size
-	}
-	return b.String()
-}
-
-func runeIndex(s, needle string) int {
-	byteIndex := strings.Index(s, needle)
-	if byteIndex < 0 {
-		return -1
-	}
-	return utf8.RuneCountInString(s[:byteIndex])
 }
 
 // DockerSortForClick maps an SGR mouse cell coordinate to the Docker header.
@@ -168,10 +126,10 @@ func DockerSortForClick(frame string, x, y int, current DockerSortMode) (DockerS
 	if y > len(lines) {
 		return current, false
 	}
-	line := plainTerminalLine(lines[y-1])
-	nameAt := runeIndex(line, "NAMES")
-	ramAt := runeIndex(line, "RAM")
-	statusAt := runeIndex(line, "STATUS")
+	line := lines[y-1]
+	nameAt := cellIndex(line, "NAMES")
+	ramAt := cellIndex(line, "RAM")
+	statusAt := cellIndex(line, "STATUS")
 	if nameAt < 0 || ramAt <= nameAt || statusAt <= ramAt {
 		return current, false
 	}
@@ -191,7 +149,7 @@ func DockerSortForClick(frame string, x, y int, current DockerSortMode) (DockerS
 		} else {
 			next = DockerSortRAMDesc
 		}
-	case pos >= statusAt && pos < utf8.RuneCountInString(line):
+	case pos >= statusAt && pos < cellWidth(line):
 		next = DockerSortDefault
 	default:
 		return current, false
