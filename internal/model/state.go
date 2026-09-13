@@ -48,11 +48,10 @@ type Snapshot struct {
 
 	Uptime time.Duration
 
-	CPUUsage   int
-	CPUPercent int
-	CPUTempC   *float64
-	FanRPM     *int
-	IOWait     int
+	CPUUsage int
+	CPUTempC *float64
+	FanRPM   *int
+	IOWait   int
 
 	GPUTempC *float64
 	GPUUsage *int
@@ -92,6 +91,11 @@ type Snapshot struct {
 	StoragePercent    int
 
 	FailedUnits int
+
+	// Client-only metadata. These fields describe freshness of the daemon state
+	// file and must never be persisted back into it.
+	StateStale bool          `json:"-"`
+	StateAge   time.Duration `json:"-"`
 }
 
 type Store struct {
