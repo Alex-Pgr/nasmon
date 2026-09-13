@@ -3,13 +3,12 @@ package tui
 import (
 	"strings"
 	"unicode/utf8"
+
+	"github.com/mattn/go-runewidth"
 )
 
 // stripANSI removes CSI escape sequences and zero-width terminal control
-// characters. The current renderer is intentionally rune-cell oriented: ASCII
-// and the box-drawing characters used by nasmon are treated as one cell each.
-// If wide/combining Unicode becomes a real input requirement, this is the one
-// layer to replace with a display-width implementation such as go-runewidth.
+// characters while preserving user-visible Unicode text.
 func stripANSI(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); {
@@ -39,16 +38,17 @@ func stripANSI(s string) string {
 	return b.String()
 }
 
-// cellWidth returns the terminal-cell width used by nasmon's current
-// ASCII-oriented renderer. ANSI/control bytes are zero-width and every visible
-// rune counts as one cell.
+// cellWidth returns the display width used by a terminal. Wide CJK/emoji
+// graphemes count as two cells and combining sequences do not consume an
+// extra cell.
 func cellWidth(s string) int {
-	return utf8.RuneCountInString(stripANSI(s))
+	return runewidth.StringWidth(stripANSI(s))
 }
 
-// truncateCells truncates styled terminal text to at most width cells while
-// preserving ANSI sequences that occur before the cut. A visible ellipsis is
-// used when truncation is required.
+// truncateCells truncates styled terminal text to at most width display cells
+// while preserving ANSI sequences before the cut. It evaluates the complete
+// visible prefix so combining/ZWJ sequences use the same width rules as
+// cellWidth. A visible ellipsis is used when truncation is required.
 func truncateCells(s string, width int) string {
 	if width <= 0 {
 		return ""
@@ -60,10 +60,10 @@ func truncateCells(s string, width int) string {
 		return "…" + reset
 	}
 
-	var b strings.Builder
-	visible := 0
+	var out strings.Builder
+	var visible strings.Builder
 	limit := width - 1
-	for i := 0; i < len(s) && visible < limit; {
+	for i := 0; i < len(s); {
 		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
 			start := i
 			i += 2
@@ -72,9 +72,9 @@ func truncateCells(s string, width int) string {
 				i++
 				if c >= '@' && c <= '~' {
 					break
-				}
 			}
-			b.WriteString(s[start:i])
+			}
+			out.WriteString(s[start:i])
 			continue
 		}
 
@@ -86,17 +86,21 @@ func truncateCells(s string, width int) string {
 		if r < 0x20 || r == 0x7f {
 			continue
 		}
-		b.WriteRune(r)
-		visible++
+
+		candidate := visible.String() + string(r)
+		if runewidth.StringWidth(candidate) > limit {
+			break
+		}
+		visible.WriteRune(r)
+		out.WriteRune(r)
 	}
-	b.WriteRune('…')
-	b.WriteString(reset)
-	return b.String()
+	out.WriteRune('…')
+	out.WriteString(reset)
+	return out.String()
 }
 
-// cellIndex returns the zero-based cell index of the first visible occurrence
-// of needle in s, or -1 when needle is absent. ANSI/control bytes do not affect
-// the result.
+// cellIndex returns the zero-based display-cell index of the first visible
+// occurrence of needle in s, or -1 when needle is absent.
 func cellIndex(s, needle string) int {
 	plain := stripANSI(s)
 	plainNeedle := stripANSI(needle)
@@ -104,5 +108,5 @@ func cellIndex(s, needle string) int {
 	if byteIndex < 0 {
 		return -1
 	}
-	return utf8.RuneCountInString(plain[:byteIndex])
+	return runewidth.StringWidth(plain[:byteIndex])
 }
