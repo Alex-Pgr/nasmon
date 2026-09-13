@@ -25,5 +25,13 @@ func commandCombinedOutput(name string, args ...string) ([]byte, error) {
 func commandCombinedOutputTimeout(timeout time.Duration, name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	if err != nil && smartctlInvocation(name, args) && smartctlUsableOutput(string(out)) {
+		// smartctl uses non-zero exit-status bits to report disk health findings
+		// as well as execution failures. If it produced a recognizable SMART
+		// report, let the SMART parser consume it instead of treating the
+		// collector itself as unavailable.
+		err = nil
+	}
+	return out, err
 }
