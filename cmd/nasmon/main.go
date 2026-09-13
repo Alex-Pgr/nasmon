@@ -78,6 +78,45 @@ func main() {
 	runClient(ctx, cfg)
 }
 
+func handleDockerInput(renderer tui.Renderer, snapshot model.Snapshot, lastFrame string, rows, cols int, ev tui.InputEvent, sortMode *tui.DockerSortMode, offset *int) bool {
+	page := renderer.DockerPageSize(snapshot, rows, cols)
+	maxOffset := len(snapshot.Containers) - page
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+
+	oldSort, oldOffset := *sortMode, *offset
+	switch ev.Kind {
+	case tui.InputClick:
+		if next, changed := tui.DockerSortForClick(lastFrame, ev.X, ev.Y, *sortMode); changed {
+			*sortMode = next
+			*offset = 0
+		}
+	case tui.InputUp:
+		*offset--
+	case tui.InputDown:
+		*offset++
+	case tui.InputPageUp:
+		step := page
+		if step < 1 {
+			step = 1
+		}
+		*offset -= step
+	case tui.InputPageDown:
+		step := page
+		if step < 1 {
+			step = 1
+		}
+		*offset += step
+	case tui.InputHome:
+		*offset = 0
+	case tui.InputEnd:
+		*offset = maxOffset
+	}
+	*offset = tui.ClampDockerOffset(*offset, len(snapshot.Containers), page)
+	return oldSort != *sortMode || oldOffset != *offset
+}
+
 func runStandalone(ctx context.Context, cfg app.Config) {
 	a := app.New(cfg)
 	renderer := tui.Renderer{Config: cfg}
@@ -87,11 +126,15 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 	defer tui.Leave()
 
 	sortMode := tui.DockerSortDefault
+	dockerOffset := 0
 	lastFrame := ""
+	snapshot := a.Store.Snapshot()
 	draw := func() {
 		rows, cols := tui.Size()
-		snapshot := a.Store.Snapshot()
-		lastFrame = renderer.RenderInteractive(snapshot, rows, cols, sortMode)
+		snapshot = a.Store.Snapshot()
+		page := renderer.DockerPageSize(snapshot, rows, cols)
+		dockerOffset = tui.ClampDockerOffset(dockerOffset, len(snapshot.Containers), page)
+		lastFrame = renderer.RenderInteractiveView(snapshot, rows, cols, sortMode, dockerOffset)
 		tui.Draw(lastFrame)
 	}
 	draw()
@@ -99,8 +142,8 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 		return
 	}
 
-	mouseEvents, stopMouse := tui.StartMouseInput()
-	defer stopMouse()
+	inputEvents, stopInput := tui.StartInput()
+	defer stopInput()
 	winch := make(chan os.Signal, 1)
 	signal.Notify(winch, syscall.SIGWINCH)
 	defer signal.Stop(winch)
@@ -112,13 +155,13 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 			draw()
 		case <-winch:
 			draw()
-		case ev, ok := <-mouseEvents:
+		case ev, ok := <-inputEvents:
 			if !ok {
-				mouseEvents = nil
+				inputEvents = nil
 				continue
 			}
-			if next, changed := tui.DockerSortForClick(lastFrame, ev.X, ev.Y, sortMode); changed {
-				sortMode = next
+			rows, cols := tui.Size()
+			if handleDockerInput(renderer, snapshot, lastFrame, rows, cols, ev, &sortMode, &dockerOffset) {
 				draw()
 			}
 		}
@@ -187,12 +230,15 @@ func runClient(ctx context.Context, cfg app.Config) {
 		freshnessInterval = cfg.StateInterval
 	}
 	sortMode := tui.DockerSortDefault
+	dockerOffset := 0
 	lastFrame := ""
 	draw := func(s model.Snapshot) {
 		s.StartedAt = clientStartedAt
 		applyStateFreshness(&s, lastWrittenAt, freshnessInterval)
 		rows, cols := tui.Size()
-		lastFrame = renderer.RenderInteractive(s, rows, cols, sortMode)
+		page := renderer.DockerPageSize(s, rows, cols)
+		dockerOffset = tui.ClampDockerOffset(dockerOffset, len(s.Containers), page)
+		lastFrame = renderer.RenderInteractiveView(s, rows, cols, sortMode, dockerOffset)
 		tui.Draw(lastFrame)
 	}
 
@@ -203,8 +249,8 @@ func runClient(ctx context.Context, cfg app.Config) {
 		return
 	}
 
-	mouseEvents, stopMouse := tui.StartMouseInput()
-	defer stopMouse()
+	inputEvents, stopInput := tui.StartInput()
+	defer stopInput()
 	ticker := time.NewTicker(cfg.MainInterval)
 	defer ticker.Stop()
 	winch := make(chan os.Signal, 1)
@@ -223,13 +269,13 @@ func runClient(ctx context.Context, cfg app.Config) {
 			draw(snapshot)
 		case <-winch:
 			draw(snapshot)
-		case ev, ok := <-mouseEvents:
+		case ev, ok := <-inputEvents:
 			if !ok {
-				mouseEvents = nil
+				inputEvents = nil
 				continue
 			}
-			if next, changed := tui.DockerSortForClick(lastFrame, ev.X, ev.Y, sortMode); changed {
-				sortMode = next
+			rows, cols := tui.Size()
+			if handleDockerInput(renderer, snapshot, lastFrame, rows, cols, ev, &sortMode, &dockerOffset) {
 				draw(snapshot)
 			}
 		}

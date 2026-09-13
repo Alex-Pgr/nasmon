@@ -14,6 +14,24 @@ import (
 
 type winsize struct{ Row, Col, Xpixel, Ypixel uint16 }
 
+type InputKind int
+
+const (
+	InputClick InputKind = iota
+	InputUp
+	InputDown
+	InputPageUp
+	InputPageDown
+	InputHome
+	InputEnd
+)
+
+type InputEvent struct {
+	Kind InputKind
+	X    int
+	Y    int
+}
+
 type MouseEvent struct {
 	X int
 	Y int
@@ -41,11 +59,11 @@ func setTermios(fd uintptr, term *syscall.Termios) syscall.Errno {
 	return e
 }
 
-// StartMouseInput enables xterm button tracking with SGR coordinates and puts
-// stdin into non-canonical mode. ISIG is intentionally kept, so Ctrl-C still
-// reaches the existing signal handler. If stdin is not a TTY, mouse input is
-// simply unavailable and nasmon continues as a read-only TUI.
-func StartMouseInput() (<-chan MouseEvent, func()) {
+// StartInput enables xterm button/wheel tracking and puts stdin into
+// non-canonical mode. ISIG stays enabled, so Ctrl-C still reaches the signal
+// handler. No pointer-motion mode is enabled: touch/drag gestures are left to
+// the terminal emulator, while keyboard and wheel scrolling work directly.
+func StartInput() (<-chan InputEvent, func()) {
 	fd := os.Stdin.Fd()
 	old := syscall.Termios{}
 	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(syscall.TCGETS), uintptr(unsafe.Pointer(&old)))
@@ -63,8 +81,8 @@ func StartMouseInput() (<-chan MouseEvent, func()) {
 	}
 
 	os.Stdout.WriteString("\033[?1000h\033[?1006h")
-	events := make(chan MouseEvent, 8)
-	go readMouseEvents(events)
+	events := make(chan InputEvent, 16)
+	go readInputEvents(events)
 
 	var once sync.Once
 	stop := func() {
@@ -76,7 +94,14 @@ func StartMouseInput() (<-chan MouseEvent, func()) {
 	return events, stop
 }
 
-func readMouseEvents(out chan<- MouseEvent) {
+func emitInput(out chan<- InputEvent, ev InputEvent) {
+	select {
+	case out <- ev:
+	default:
+	}
+}
+
+func readInputEvents(out chan<- InputEvent) {
 	defer close(out)
 	r := bufio.NewReader(os.Stdin)
 	for {
@@ -88,11 +113,52 @@ func readMouseEvents(out chan<- MouseEvent) {
 			continue
 		}
 		b, err = r.ReadByte()
-		if err != nil || b != '[' {
+		if err != nil {
+			return
+		}
+		if b == 'O' {
+			if code, err := r.ReadByte(); err == nil {
+				switch code {
+				case 'H':
+					emitInput(out, InputEvent{Kind: InputHome})
+				case 'F':
+					emitInput(out, InputEvent{Kind: InputEnd})
+				}
+			}
+			continue
+		}
+		if b != '[' {
 			continue
 		}
 		b, err = r.ReadByte()
-		if err != nil || b != '<' {
+		if err != nil {
+			return
+		}
+		switch b {
+		case 'A':
+			emitInput(out, InputEvent{Kind: InputUp})
+			continue
+		case 'B':
+			emitInput(out, InputEvent{Kind: InputDown})
+			continue
+		case 'H':
+			emitInput(out, InputEvent{Kind: InputHome})
+			continue
+		case 'F':
+			emitInput(out, InputEvent{Kind: InputEnd})
+			continue
+		case '5', '6':
+			if term, err := r.ReadByte(); err == nil && term == '~' {
+				if b == '5' {
+					emitInput(out, InputEvent{Kind: InputPageUp})
+				} else {
+					emitInput(out, InputEvent{Kind: InputPageDown})
+				}
+			}
+			continue
+		case '<':
+			// SGR mouse sequence: <button;x;yM (press/wheel), ...m release.
+		default:
 			continue
 		}
 
@@ -103,14 +169,9 @@ func readMouseEvents(out chan<- MouseEvent) {
 				return
 			}
 			if b == 'M' || b == 'm' {
-				// SGR uses M for press and m for release. Only a left-button
-				// press is useful for sortable headers.
 				if b == 'M' {
-					if ev, ok := parseSGRMouse(payload.String()); ok {
-						select {
-						case out <- ev:
-						default:
-						}
+					if ev, ok := parseSGRInput(payload.String()); ok {
+						emitInput(out, ev)
 					}
 				}
 				break
@@ -123,20 +184,37 @@ func readMouseEvents(out chan<- MouseEvent) {
 	}
 }
 
-func parseSGRMouse(payload string) (MouseEvent, bool) {
+func parseSGRInput(payload string) (InputEvent, bool) {
 	parts := strings.Split(payload, ";")
 	if len(parts) != 3 {
-		return MouseEvent{}, false
+		return InputEvent{}, false
 	}
 	button, err1 := strconv.Atoi(parts[0])
 	x, err2 := strconv.Atoi(parts[1])
 	y, err3 := strconv.Atoi(parts[2])
-	if err1 != nil || err2 != nil || err3 != nil || x < 1 || y < 1 {
+	if err1 != nil || err2 != nil || err3 != nil || x < 1 || y < 1 || button&32 != 0 {
+		return InputEvent{}, false
+	}
+	if button&64 != 0 {
+		switch button & 3 {
+		case 0:
+			return InputEvent{Kind: InputUp, X: x, Y: y}, true
+		case 1:
+			return InputEvent{Kind: InputDown, X: x, Y: y}, true
+		default:
+			return InputEvent{}, false
+		}
+	}
+	if button&3 != 0 {
+		return InputEvent{}, false
+	}
+	return InputEvent{Kind: InputClick, X: x, Y: y}, true
+}
+
+func parseSGRMouse(payload string) (MouseEvent, bool) {
+	ev, ok := parseSGRInput(payload)
+	if !ok || ev.Kind != InputClick {
 		return MouseEvent{}, false
 	}
-	// Ignore motion, wheel and non-left buttons.
-	if button&32 != 0 || button&64 != 0 || button&3 != 0 {
-		return MouseEvent{}, false
-	}
-	return MouseEvent{X: x, Y: y}, true
+	return MouseEvent{X: ev.X, Y: ev.Y}, true
 }
