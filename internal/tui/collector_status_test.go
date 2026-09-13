@@ -34,12 +34,12 @@ func TestCollectorIssueStates(t *testing.T) {
 func TestRenderShowsCollectorProblems(t *testing.T) {
 	now := time.Now()
 	r := Renderer{Config: app.Config{
-		MainInterval:     2 * time.Second,
-		DockerInterval:   30 * time.Second,
-		SMARTInterval:    time.Hour,
-		SystemdInterval:  30 * time.Second,
-		MinTermWidth:     36,
-		RightMargin:      1,
+		MainInterval:    2 * time.Second,
+		DockerInterval:  30 * time.Second,
+		SMARTInterval:   time.Hour,
+		SystemdInterval: 30 * time.Second,
+		MinTermWidth:    36,
+		RightMargin:     1,
 	}}
 	s := model.Snapshot{
 		DockerCollector: model.CollectorStatus{Enabled: true, LastAttempt: now},
