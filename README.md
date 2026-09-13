@@ -24,7 +24,7 @@ The repository no longer assumes a particular NAS layout. With no host configura
 
 Docker, `smartctl`, `hdparm`, and the GPU helper are optional capabilities. If they are unavailable, the rest of the monitor continues to run.
 
-Host-specific settings belong in `/etc/nasmon/nasmon.env`, not in the source tree. The systemd service reads that file if it exists. `config/nasmon.env.example` documents the available values.
+Host-specific settings belong in `/etc/nasmon/nasmon.env`, not in the source tree. Both `nasmond` and `nasmon` load that file directly, so a client launched from a normal shell uses the same state path and timing as the daemon. Process environment variables override values from the file. `config/nasmon.env.example` documents the available values.
 
 ## Build
 
@@ -74,7 +74,7 @@ STORAGE_PATH=/mnt/hdd
 DISK_PATHS=/,/mnt/ssd,/mnt/hdd
 ```
 
-`DISK_PATHS` is a comma-separated list of mounted paths shown in the Disk Usage section. An empty or missing value falls back to `/`.
+`DISK_PATHS` is a comma-separated list of mounted paths shown in the Disk Usage section. Root is displayed first, configured mounts follow in `DISK_PATHS` order, and any additional autodetected block-device mounts are listed alphabetically. An empty or missing value falls back to `/`.
 
 Available environment variables:
 
@@ -100,6 +100,8 @@ NAS_MONITOR_ONESHOT=1
 ```
 
 `MAIN_INTERVAL` defaults to 2 seconds. A positional CLI interval overrides it for `nasmon`.
+
+For development or alternate packaging, `NASMON_CONFIG_FILE=/path/to/file` selects a different env-style config file. The default remains `/etc/nasmon/nasmon.env`.
 
 `DISK_QUIET_WINDOW` is the amount of time, in seconds, after the last real block I/O before SMART/temperature polling is suppressed for rotational disks. SSDs are not gated by this quiet window. Disk activity is tracked from `/proc/diskstats`, so the activity check itself does not touch the drive.
 
