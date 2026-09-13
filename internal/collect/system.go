@@ -186,37 +186,76 @@ func CollectLoadUptime(store *model.Store) {
 	}
 }
 
-func CollectCPUTemp(store *model.Store) {
-	// Prefer k10temp/coretemp hwmon. This avoids spawning `sensors`.
-	dirs, _ := filepath.Glob("/sys/class/hwmon/hwmon*")
-	var fallback *float64
+func readMilliCelsius(path string) (*float64, bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	raw, err := strconv.ParseFloat(strings.TrimSpace(string(b)), 64)
+	if err != nil {
+		return nil, false
+	}
+	v := raw / 1000
+	return &v, true
+}
+
+func hwmonCPUTemp(root string) (preferred, fallback *float64) {
+	dirs, _ := filepath.Glob(filepath.Join(root, "hwmon*"))
 	for _, d := range dirs {
 		nameb, _ := os.ReadFile(filepath.Join(d, "name"))
-		name := strings.TrimSpace(string(nameb))
+		name := strings.ToLower(strings.TrimSpace(string(nameb)))
 		inputs, _ := filepath.Glob(filepath.Join(d, "temp*_input"))
-		for _, in := range inputs {
-			b, err := os.ReadFile(in)
-			if err != nil {
+		for _, input := range inputs {
+			v, ok := readMilliCelsius(input)
+			if !ok {
 				continue
 			}
-			raw, err := strconv.ParseFloat(strings.TrimSpace(string(b)), 64)
-			if err != nil {
-				continue
-			}
-			v := raw / 1000
-			vv := v
 			if fallback == nil {
-				fallback = &vv
+				fallback = v
 			}
 			if strings.Contains(name, "k10temp") || strings.Contains(name, "coretemp") {
-				store.Update(func(s *model.Snapshot) { s.CPUTempC = &vv })
-				return
+				return v, fallback
 			}
 		}
 	}
-	if fallback != nil {
-		store.Update(func(s *model.Snapshot) { s.CPUTempC = fallback })
+	return nil, fallback
+}
+
+func thermalZoneCPUTemp(root string) *float64 {
+	zones, _ := filepath.Glob(filepath.Join(root, "thermal_zone*"))
+	for _, zone := range zones {
+		typeBytes, err := os.ReadFile(filepath.Join(zone, "type"))
+		if err != nil {
+			continue
+		}
+		kind := strings.ToLower(strings.TrimSpace(string(typeBytes)))
+		if !strings.Contains(kind, "cpu") && !strings.Contains(kind, "soc") && !strings.Contains(kind, "package") {
+			continue
+		}
+		if v, ok := readMilliCelsius(filepath.Join(zone, "temp")); ok {
+			return v
+		}
 	}
+	return nil
+}
+
+func cpuTemperature(hwmonRoot, thermalRoot string) *float64 {
+	preferred, fallback := hwmonCPUTemp(hwmonRoot)
+	if preferred != nil {
+		return preferred
+	}
+	if thermal := thermalZoneCPUTemp(thermalRoot); thermal != nil {
+		return thermal
+	}
+	return fallback
+}
+
+func CollectCPUTemp(store *model.Store) {
+	// x86 exposes reliable package sensors through coretemp/k10temp. ARM SBCs
+	// commonly expose CPU/SoC temperature through the generic thermal-zone API.
+	// A generic hwmon value is retained only as the final fallback.
+	temp := cpuTemperature("/sys/class/hwmon", "/sys/class/thermal")
+	store.Update(func(s *model.Snapshot) { s.CPUTempC = temp })
 }
 
 func maxFanRPM(hwmonRoot string) *int {
