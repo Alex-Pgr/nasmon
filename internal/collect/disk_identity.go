@@ -92,11 +92,31 @@ func diskIdentity(device string) diskIdentityValue {
 }
 
 func populateDiskIdentity(h *model.DiskHealth) {
-	if h.Device == "" || (h.Vendor != "" && h.Model != "" && h.Brand != "") {
+	if h.Device == "" || h.Brand != "" {
 		return
 	}
 	identity := diskIdentity(h.Device)
 	h.Vendor = identity.vendor
 	h.Model = identity.model
 	h.Brand = identity.brand
+}
+
+// CollectDiskIdentities owns sysfs disk identity I/O. The TUI receives the
+// resulting vendor/model/brand in the shared snapshot and remains a pure
+// renderer with no hardware reads of its own.
+func CollectDiskIdentities(devs []string, store *model.Store) {
+	store.Update(func(s *model.Snapshot) {
+		current := make(map[string]model.DiskHealth, len(s.DiskHealth))
+		for _, h := range s.DiskHealth {
+			current[h.Device] = h
+		}
+		out := make([]model.DiskHealth, 0, len(devs))
+		for _, dev := range devs {
+			h := current[dev]
+			h.Device = dev
+			populateDiskIdentity(&h)
+			out = append(out, h)
+		}
+		s.DiskHealth = out
+	})
 }
