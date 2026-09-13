@@ -44,7 +44,11 @@ func parseArgs(cfg *app.Config) (standalone bool, err error) {
 }
 
 func main() {
-	cfg := app.DefaultConfig()
+	cfg, err := app.LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "nasmon: cannot load config: %v\n", err)
+		os.Exit(1)
+	}
 	standalone, err := parseArgs(&cfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

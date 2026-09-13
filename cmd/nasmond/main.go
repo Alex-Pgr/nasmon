@@ -12,7 +12,11 @@ import (
 )
 
 func main() {
-	cfg := app.DefaultConfig()
+	cfg, err := app.LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "nasmond: cannot load config: %v\n", err)
+		os.Exit(1)
+	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
