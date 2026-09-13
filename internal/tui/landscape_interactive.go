@@ -34,9 +34,9 @@ func landscapeDiskWidths(usage []model.DiskUsage) (pathW, usedW, totalW int) {
 	return
 }
 
-// renderLandscapeInteractiveAdaptive mirrors the adaptive landscape sizing,
-// but keeps Docker filtering and user sorting as separate steps: first choose
-// the important rows that fit, then sort only that visible subset.
+// renderLandscapeInteractiveAdaptive keeps Docker filtering and user sorting
+// separate: first choose the important rows that fit, then sort only that
+// visible subset. The actual rendering is delegated to section row builders.
 func (r Renderer) renderLandscapeInteractiveAdaptive(s model.Snapshot, w, rows int, mode DockerSortMode) string {
 	lowerRows := len(s.DiskUsage)
 	if h := 1 + len(s.DiskHealth); h > lowerRows {
@@ -52,13 +52,6 @@ func (r Renderer) renderLandscapeInteractiveAdaptive(s model.Snapshot, w, rows i
 
 	copySnap := s
 	copySnap.Containers = append([]model.Container(nil), s.Containers...)
-	copySnap.DiskHealth = append([]model.DiskHealth(nil), s.DiskHealth...)
-	deviceW := healthDeviceWidth(copySnap.DiskHealth)
-	for i := range copySnap.DiskHealth {
-		copySnap.DiskHealth[i].Device = fmt.Sprintf("%-*s", deviceW, trunc(copySnap.DiskHealth[i].Device, deviceW))
-		copySnap.DiskHealth[i].Temperature = fmt.Sprintf("%-5s", copySnap.DiskHealth[i].Temperature)
-	}
-
 	if compactHeader && rows > 0 {
 		// Compact landscape has one global header row, two rows of box borders,
 		// one spacer and two lower-box borders. Docker also needs one table header.
@@ -96,66 +89,11 @@ func (r Renderer) renderLandscapeInteractive(s model.Snapshot, w int, mode Docke
 	lw := (w - gap) / 2
 	rw := w - gap - lw
 
-	traffic := "Traffic measuring..."
-	if s.NetReady {
-		traffic = fmt.Sprintf("Traffic RX %s TX %s", speed(s.RXBps), speed(s.TXBps))
-	}
-	dio := "Disk IO measuring..."
-	if s.DiskIOReady {
-		dio = fmt.Sprintf("Disk R %s W %s", speed(s.DiskReadBps), speed(s.DiskWriteBps))
-	}
-	netLabel := "No IP"
-	if s.IP != "" {
-		netLabel = s.IP
-	}
-
-	// boxLine has an inner width of lw-2. Metric rows are one cell shorter so
+	// makeBox has an inner width of lw-2. Metric rows are one cell shorter so
 	// the fixed suffix column is followed by exactly one blank before the System
 	// border. CPU/GPU/RAM/ZRAM all share the same bar start/end and suffix start.
-	metricWidth := lw - 3
-	system := []string{
-		fmt.Sprintf(" %sUptime%s %s%s%s", white, reset, lightGray, dur(s.Uptime), reset),
-	}
-	system = append(system, systemMetricRows(s, metricWidth, true)...)
-	system = append(system,
-		fmt.Sprintf(" %sSwap%s %s%d%%%s %s%s/%sG%s  %sIOwait%s %s%d%%%s", white, reset, pctColor(s.SwapPercent, "mem"), s.SwapPercent, reset, gray, gib(s.SwapUsedBytes), gib(s.SwapTotalBytes), reset, white, reset, pctColor(s.IOWait, "io"), s.IOWait, reset),
-		fmt.Sprintf(" %sLoad%s %s%s%s %s(%s, %s)%s", white, reset, lightGray, s.Load1, reset, gray, s.Load5, s.Load15, reset),
-		fmt.Sprintf(" %sNet%s  %s%s%s", white, reset, blue, netLabel, reset),
-		fmt.Sprintf(" %sTraffic%s%s%s", white, reset, gray, strings.TrimPrefix(traffic, "Traffic")+reset),
-		fmt.Sprintf(" %sDisk%s%s%s", white, reset, gray, strings.TrimPrefix(dio, "Disk")+reset),
-	)
-
-	const ramW = 6
-	inner := rw - 2
-	nameW := clamp(rw/3, 10, 24)
-	statusW := inner - nameW - ramW - 7
-	if statusW < 6 {
-		nameW -= 6 - statusW
-		if nameW < 8 {
-			nameW = 8
-		}
-		statusW = inner - nameW - ramW - 7
-	}
-	if statusW < 1 {
-		statusW = 1
-	}
-	namesLabel, ramLabel := dockerSortLabels(mode)
-	docker := make([]string, 0, len(s.Containers)+1)
-	docker = append(docker, fmt.Sprintf("   %-*s  %*s  STATUS", nameW, namesLabel, ramW, ramLabel))
-	for _, c := range s.Containers {
-		icon, color := "●", blue
-		if c.State != "running" || c.Health == "unhealthy" {
-			icon, color = "⚠", yellow
-		} else if c.Health == "healthy" {
-			icon, color = "✓", green
-		}
-		status := dockerStatus(c)
-		if status == "" {
-			status = c.State
-		}
-		status += fmt.Sprintf(" R:%d", c.Restarts)
-		docker = append(docker, fmt.Sprintf(" %s%s%s %s%-*s%s  %s%*s%s  %s%s%s", color, icon, reset, lightGray, nameW, trunc(c.Name, nameW), reset, gray, ramW, dockerMemoryLabel(c.MemoryBytes), reset, color, trunc(status, statusW), reset))
-	}
+	system := buildSystemRows(s, lw-3, true)
+	docker := buildDockerRows(s.Containers, rw-2, true, mode)
 
 	upperRows := len(system)
 	if len(docker) > upperRows {
@@ -169,32 +107,8 @@ func (r Renderer) renderLandscapeInteractive(s model.Snapshot, w int, mode Docke
 
 	add(&b, "")
 
-	pathW, usedW, totalW := landscapeDiskWidths(s.DiskUsage)
-	disks := make([]string, 0, len(s.DiskUsage))
-	for _, d := range s.DiskUsage {
-		disks = append(disks, fmt.Sprintf(" %s%-*s%s  %s%*s/%-*s%s  %s%3d%%%s", lightGray, pathW, trunc(d.Path, pathW), reset, white, usedW, humanBytes(d.UsedBytes), totalW, humanBytes(d.TotalBytes), reset, pctColor(d.Percent, "disk"), d.Percent, reset))
-	}
-
-	health := []string{}
-	if s.FailedUnits == 0 {
-		health = append(health, fmt.Sprintf(" %ssystemd OK (0 failed)%s", green, reset))
-	} else {
-		health = append(health, fmt.Sprintf(" %ssystemd WARNING (%d failed)%s", yellow, s.FailedUnits, reset))
-	}
-	for _, h := range s.DiskHealth {
-		state := "SMART " + h.Health
-		stateColor := yellow
-		if diskHealthOK(h) {
-			state = "SMART OK"
-			stateColor = green
-		}
-		sleepMark := ""
-		if h.Sleeping {
-			sleepMark = " " + blue + "SLEEP" + reset
-		}
-		health = append(health, fmt.Sprintf(" %s%s%s %s%s %s%s%s %s%s%s%s", lightGray, h.Device, reset, white, h.Temperature, stateColor, state, reset, gray, diskHealthDetails(h, true), reset, sleepMark))
-	}
-
+	disks := buildDiskRows(s.DiskUsage, true)
+	health := buildHealthRows(s, true)
 	lowerRows := len(disks)
 	if len(health) > lowerRows {
 		lowerRows = len(health)
