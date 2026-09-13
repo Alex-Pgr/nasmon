@@ -14,6 +14,19 @@ if ! command -v go >/dev/null 2>&1; then
   exit 1
 fi
 
+go_version="$(go env GOVERSION 2>/dev/null || true)"
+if [[ "$go_version" =~ ^go([0-9]+)\.([0-9]+) ]]; then
+  go_major="${BASH_REMATCH[1]}"
+  go_minor="${BASH_REMATCH[2]}"
+  if (( go_major < 1 || (go_major == 1 && go_minor < 23) )); then
+    echo "Go 1.23 or newer is required; found $go_version" >&2
+    exit 1
+  fi
+else
+  echo "cannot determine Go version (got: ${go_version:-unknown}); Go 1.23 or newer is required" >&2
+  exit 1
+fi
+
 service_user="${NASMON_SERVICE_USER:-${SUDO_USER:-$(id -un)}}"
 if [[ -z "$service_user" || ! "$service_user" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "invalid NASMON_SERVICE_USER: $service_user" >&2
