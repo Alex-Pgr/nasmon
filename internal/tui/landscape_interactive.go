@@ -33,11 +33,26 @@ func landscapeDiskWidths(usage []model.DiskUsage) (pathW, usedW, totalW int) {
 	return
 }
 
-// renderLandscape selects the visible Docker subset before sorting and passes
-// the chosen header mode into the canonical landscape composer. Compact mode
-// is therefore composed directly rather than rewriting an already-rendered
-// ANSI frame.
-func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSortMode) string {
+func dockerViewportTitle(total, offset, visible int) string {
+	if total == 0 || visible >= total {
+		return "Docker"
+	}
+	start := offset + 1
+	end := offset + visible
+	if end > total {
+		end = total
+	}
+	prefix, suffix := "", ""
+	if offset > 0 {
+		prefix = "↑ "
+	}
+	if end < total {
+		suffix = " ↓"
+	}
+	return fmt.Sprintf("Docker %s%d–%d/%d%s", prefix, start, end, total, suffix)
+}
+
+func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSortMode, dockerOffset int) string {
 	healthRows := len(buildHealthRows(s, true)) + len(r.collectorWarningRows(s, true))
 	lowerRows := len(s.DiskUsage)
 	if healthRows > lowerRows {
@@ -52,22 +67,30 @@ func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSort
 	compactHeader := rows > 0 && fullRows > rows
 
 	copySnap := s
-	copySnap.Containers = append([]model.Container(nil), s.Containers...)
+	sorted := sortDockerContainers(s.Containers, s.Containers, mode)
+	visible := len(sorted)
+	offset := 0
 	if compactHeader && rows > 0 {
-		availableContainers := rows - 7 - lowerRows
-		if availableContainers < 0 {
-			availableContainers = 0
+		visible = rows - 7 - lowerRows
+		if visible < 0 {
+			visible = 0
 		}
-		if availableContainers < len(copySnap.Containers) {
-			copySnap.Containers = selectDockerContainers(copySnap.Containers, availableContainers)
+		if visible > len(sorted) {
+			visible = len(sorted)
+		}
+		offset = ClampDockerOffset(dockerOffset, len(sorted), visible)
+		if visible > 0 {
+			sorted = sorted[offset : offset+visible]
+		} else {
+			sorted = nil
 		}
 	}
-	copySnap.Containers = sortDockerContainers(copySnap.Containers, s.Containers, mode)
+	copySnap.Containers = sorted
 
-	return r.layoutLandscape(copySnap, w, mode, compactHeader)
+	return r.layoutLandscape(copySnap, w, mode, compactHeader, len(s.Containers), offset, visible)
 }
 
-func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode, compactHeader bool) string {
+func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode, compactHeader bool, dockerTotal, dockerOffset, dockerVisible int) string {
 	var b strings.Builder
 	if compactHeader {
 		title := fmt.Sprintf("NAS Health Monitor %s", r.Config.MainInterval) + staleSuffix(s)
@@ -91,7 +114,7 @@ func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode, 
 		upperRows = len(docker)
 	}
 	leftUpper := makeBox(lw, "System", system, upperRows)
-	dockerTitle := "Docker" + collectorTitleSuffix(s.DockerCollector, r.Config.DockerInterval)
+	dockerTitle := dockerViewportTitle(dockerTotal, dockerOffset, dockerVisible) + collectorTitleSuffix(s.DockerCollector, r.Config.DockerInterval)
 	rightUpper := makeBox(rw, dockerTitle, docker, upperRows)
 	for _, row := range composeBoxRows(leftUpper, rightUpper, lw, rw, gap) {
 		add(&b, white+row+reset)
