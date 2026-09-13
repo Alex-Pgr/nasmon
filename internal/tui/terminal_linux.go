@@ -94,11 +94,11 @@ func StartInput() (<-chan InputEvent, func()) {
 	return events, stop
 }
 
+// Input events are discrete user actions. Do not drop them when rendering is
+// briefly slower than input delivery (notably touch-generated SGR events in
+// Termux); backpressure lets the PTY buffer the burst until the UI consumes it.
 func emitInput(out chan<- InputEvent, ev InputEvent) {
-	select {
-	case out <- ev:
-	default:
-	}
+	out <- ev
 }
 
 func readInputEvents(out chan<- InputEvent) {

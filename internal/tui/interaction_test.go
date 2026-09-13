@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"nasmon/internal/app"
 	"nasmon/internal/model"
@@ -81,6 +82,33 @@ func TestParseSGRMouseAndWheel(t *testing.T) {
 	}
 	if _, ok := parseSGRMouse("1;12;7"); ok {
 		t.Fatalf("non-left button must be ignored")
+	}
+}
+
+func TestEmitInputBackpressuresInsteadOfDropping(t *testing.T) {
+	out := make(chan InputEvent, 1)
+	out <- InputEvent{Kind: InputDown}
+	click := InputEvent{Kind: InputClick, X: 12, Y: 7}
+	done := make(chan struct{})
+	go func() {
+		emitInput(out, click)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatalf("emitInput returned while the channel was full; input can be dropped")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	<-out
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatalf("emitInput did not resume after channel space became available")
+	}
+	if got := <-out; got != click {
+		t.Fatalf("queued event = %+v, want %+v", got, click)
 	}
 }
 
