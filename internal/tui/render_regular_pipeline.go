@@ -8,24 +8,24 @@ import (
 	"nasmon/internal/model"
 )
 
-// renderRegular is the canonical regular layout. It selects and sorts Docker
-// rows before rendering and composes already-built section rows directly.
-func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMode) string {
+// renderRegular is the canonical regular layout. It sorts Docker rows before
+// applying the viewport so keyboard scrolling works in portrait layouts too.
+func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMode, dockerOffset int) string {
 	collectorWarnings := r.collectorWarningRows(s, false)
 	fullRows := regularFixedRows(s, 5) + len(collectorWarnings) + len(s.Containers)
 	compactHeader := rows > 0 && fullRows > rows
 
-	containers := append([]model.Container(nil), s.Containers...)
-	if compactHeader && rows > 0 {
-		available := rows - regularFixedRows(s, 1) - len(collectorWarnings)
-		if available < 0 {
-			available = 0
-		}
-		if available < len(containers) {
-			containers = selectDockerContainers(containers, available)
+	page := r.regularDockerPageSize(s, rows)
+	sorted := sortDockerContainers(s.Containers, s.Containers, mode)
+	offset := ClampDockerOffset(dockerOffset, len(sorted), page)
+	containers := sorted
+	if page < len(sorted) {
+		if page > 0 {
+			containers = sorted[offset : offset+page]
+		} else {
+			containers = nil
 		}
 	}
-	containers = sortDockerContainers(containers, s.Containers, mode)
 
 	var b strings.Builder
 	n := 0
@@ -69,7 +69,13 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMo
 	addn(white + bottom(w) + reset)
 
 	addn("")
-	dockerTitle := "┌── Docker Services" + collectorTitleSuffix(s.DockerCollector, r.Config.DockerInterval)
+	viewportTitle := dockerViewportTitle(len(s.Containers), offset, len(containers))
+	if viewportTitle == "Docker" {
+		viewportTitle = "Docker Services"
+	} else {
+		viewportTitle = strings.Replace(viewportTitle, "Docker", "Docker Services", 1)
+	}
+	dockerTitle := "┌── " + viewportTitle + collectorTitleSuffix(s.DockerCollector, r.Config.DockerInterval)
 	addn(white + dockerTitle + reset)
 	for _, row := range buildDockerRows(containers, w, false, mode) {
 		addn(row)
