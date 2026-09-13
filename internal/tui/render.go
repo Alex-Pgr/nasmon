@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"nasmon/internal/app"
 	"nasmon/internal/model"
@@ -42,23 +41,13 @@ func rep(s string, n int) string {
 }
 
 func trunc(s string, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	if n == 1 {
-		return "…"
-	}
-	return string(r[:n-1]) + "…"
+	return stripANSI(truncateCells(s, n))
 }
 
 func center(s string, w int) string {
-	l := utf8.RuneCountInString(s)
+	l := cellWidth(s)
 	if l >= w {
-		return trunc(s, w)
+		return stripANSI(truncateCells(s, w))
 	}
 	return rep(" ", (w-l)/2) + s
 }
@@ -244,85 +233,20 @@ func boxTop(w int, title string) string {
 		return rep("─", w)
 	}
 	prefix := "┌── " + title + " "
-	remain := w - utf8.RuneCountInString(prefix) - 1
+	remain := w - cellWidth(prefix) - 1
 	if remain < 1 {
-		return trunc(prefix, w-1) + "┐"
+		return stripANSI(truncateCells(prefix, w-1)) + "┐"
 	}
 	return prefix + rep("─", remain) + "┐"
 }
 
-func visibleRunes(s string) int {
-	n := 0
-	for i := 0; i < len(s); {
-		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
-			i += 2
-			for i < len(s) {
-				c := s[i]
-				i++
-				if c >= '@' && c <= '~' {
-					break
-				}
-			}
-			continue
-		}
-		_, size := utf8.DecodeRuneInString(s[i:])
-		if size == 0 {
-			break
-		}
-		n++
-		i += size
-	}
-	return n
-}
-
-func truncANSI(s string, n int) string {
-	if n <= 0 {
-		return ""
-	}
-	if visibleRunes(s) <= n {
-		return s
-	}
-	if n == 1 {
-		return "…"
-	}
-
-	var b strings.Builder
-	visible := 0
-	limit := n - 1
-	for i := 0; i < len(s) && visible < limit; {
-		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
-			start := i
-			i += 2
-			for i < len(s) {
-				c := s[i]
-				i++
-				if c >= '@' && c <= '~' {
-					break
-				}
-			}
-			b.WriteString(s[start:i])
-			continue
-		}
-		rn, size := utf8.DecodeRuneInString(s[i:])
-		if size == 0 {
-			break
-		}
-		b.WriteRune(rn)
-		visible++
-		i += size
-	}
-	b.WriteRune('…')
-	b.WriteString(reset)
-	return b.String()
-}
-
 func boxLine(w int, content string) string {
 	if w < 2 {
-		return truncANSI(content, w)
+		return truncateCells(content, w)
 	}
 	inner := w - 2
-	content = truncANSI(content, inner)
-	pad := inner - visibleRunes(content)
+	content = truncateCells(content, inner)
+	pad := inner - cellWidth(content)
 	if pad < 0 {
 		pad = 0
 	}
