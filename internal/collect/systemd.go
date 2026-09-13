@@ -1,13 +1,13 @@
 package collect
 
 import (
-	"nasmon/internal/model"
-	"os/exec"
 	"strings"
+
+	"nasmon/internal/model"
 )
 
 func CollectSystemd(store *model.Store) {
-	out, err := exec.Command("systemctl", "--failed", "--no-legend", "--plain").Output()
+	out, err := commandOutput("systemctl", "--failed", "--no-legend", "--plain")
 	if err != nil {
 		return
 	}
