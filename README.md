@@ -53,6 +53,18 @@ nasmon 5
 nasmon --standalone 5
 ```
 
+## Doctor
+
+Run the built-in host diagnostics after installation, after changing configuration, or when bringing nasmon to a new machine:
+
+```bash
+nasmon doctor
+```
+
+The doctor checks the Linux/CPU architecture, selected config file, configured storage and disk paths, network interface/default route, `smartctl`, `hdparm`, `systemctl`, the optional GPU helper, Docker socket access, and freshness/readability of the daemon state file. Optional capabilities are reported as `WARN`; broken required host configuration such as a missing configured storage path or network interface is reported as `FAIL` and makes the command exit non-zero.
+
+This command is intentionally useful before all optional integrations are installed, so a minimal host can still be considered runnable with warnings.
+
 ## Shared state
 
 The default state file is:
@@ -158,6 +170,7 @@ Manual installation remains possible using `nasmond.service.example`, but `insta
 Check the collector with:
 
 ```bash
+nasmon doctor
 systemctl status nasmond --no-pager
 cat /run/nasmon/state.json | jq '.version, .written_at'
 ```
