@@ -7,19 +7,25 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+func consumeCSI(s string, start int) int {
+	i := start + 2
+	for i < len(s) {
+		c := s[i]
+		i++
+		if c >= '@' && c <= '~' {
+			break
+		}
+	}
+	return i
+}
+
 // stripANSI removes CSI escape sequences and zero-width terminal control
 // characters while preserving user-visible Unicode text.
 func stripANSI(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); {
 		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
-			i += 2
-			for i < len(s) {
-				c := s[i]
-				i++
-				if c >= '@' && c <= '~' {
-					break
-				}
+			i = consumeCSI(s, i)
 			continue
 		}
 
@@ -64,15 +70,9 @@ func truncateCells(s string, width int) string {
 	limit := width - 1
 	for i := 0; i < len(s); {
 		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
-			start := i
-			i += 2
-			for i < len(s) {
-				c := s[i]
-				i++
-				if c >= '@' && c <= '~' {
-					break
-			}
-			out.WriteString(s[start:i])
+			end := consumeCSI(s, i)
+			out.WriteString(s[i:end])
+			i = end
 			continue
 		}
 
