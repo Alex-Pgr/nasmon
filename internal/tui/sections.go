@@ -105,7 +105,7 @@ func buildDockerRows(containers []model.Container, width int, landscape bool, mo
 				status = c.State
 			}
 			status += fmt.Sprintf(" R:%d", c.Restarts)
-			rows = append(rows, fmt.Sprintf(" %s%s%s %s%-*s%s  %s%*s%s  %s%s%s", color, icon, reset, lightGray, nameW, trunc(c.Name, nameW), reset, gray, ramW, dockerMemoryLabel(c.MemoryBytes), reset, color, trunc(status, statusW), reset))
+			rows = append(rows, fmt.Sprintf(" %s%s%s %s%s%s  %s%s%s  %s%s%s", color, icon, reset, lightGray, padRightCells(c.Name, nameW), reset, gray, padLeftCells(dockerMemoryLabel(c.MemoryBytes), ramW), reset, color, trunc(status, statusW), reset))
 		}
 		return rows
 	}
@@ -123,7 +123,7 @@ func buildDockerRows(containers []model.Container, width int, landscape bool, mo
 			status = c.State
 		}
 		status += fmt.Sprintf(" R:%d", c.Restarts)
-		rows = append(rows, fmt.Sprintf("%s│ %s%s%s %s%-*s%s  %s%*s%s  %s%s%s", white, color, icon, reset, lightGray, nameW, trunc(c.Name, nameW), reset, gray, ramW, dockerMemoryLabel(c.MemoryBytes), reset, color, trunc(status, statusW), reset))
+		rows = append(rows, fmt.Sprintf("%s│ %s%s%s %s%s%s  %s%s%s  %s%s%s", white, color, icon, reset, lightGray, padRightCells(c.Name, nameW), reset, gray, padLeftCells(dockerMemoryLabel(c.MemoryBytes), ramW), reset, color, trunc(status, statusW), reset))
 	}
 	return rows
 }
@@ -133,19 +133,20 @@ func buildDiskRows(usage []model.DiskUsage, landscape bool) []string {
 		pathW, usedW, totalW := landscapeDiskWidths(usage)
 		rows := make([]string, 0, len(usage))
 		for _, d := range usage {
-			rows = append(rows, fmt.Sprintf(" %s%-*s%s  %s%*s/%-*s%s  %s%3d%%%s", lightGray, pathW, trunc(d.Path, pathW), reset, white, usedW, humanBytes(d.UsedBytes), totalW, humanBytes(d.TotalBytes), reset, pctColor(d.Percent, "disk"), d.Percent, reset))
+			rows = append(rows, fmt.Sprintf(" %s%s%s  %s%s/%s%s  %s%3d%%%s", lightGray, padRightCells(d.Path, pathW), reset, white, padLeftCells(humanBytes(d.UsedBytes), usedW), padRightCells(humanBytes(d.TotalBytes), totalW), reset, pctColor(d.Percent, "disk"), d.Percent, reset))
 		}
 		return rows
 	}
 
 	rows := make([]string, 0, len(usage))
 	for _, d := range usage {
-		rows = append(rows, fmt.Sprintf("%s│ %s%-14s%s %7s/%-7s %s%3d%%%s", white, lightGray, trunc(d.Path, 14), reset, humanBytes(d.UsedBytes), humanBytes(d.TotalBytes), pctColor(d.Percent, "disk"), d.Percent, reset))
+		rows = append(rows, fmt.Sprintf("%s│ %s%s%s %7s/%-7s %s%3d%%%s", white, lightGray, padRightCells(d.Path, 14), reset, humanBytes(d.UsedBytes), humanBytes(d.TotalBytes), pctColor(d.Percent, "disk"), d.Percent, reset))
 	}
 	return rows
 }
 
 func buildHealthRows(s model.Snapshot, landscape bool) []string {
+	labels := diskHealthLabels(s.DiskHealth)
 	deviceW := healthDeviceWidth(s.DiskHealth)
 	rows := make([]string, 0, len(s.DiskHealth)+1)
 	if landscape {
@@ -156,7 +157,8 @@ func buildHealthRows(s model.Snapshot, landscape bool) []string {
 		}
 	}
 
-	for _, h := range s.DiskHealth {
+	for i, h := range s.DiskHealth {
+		label := labels[i]
 		mark := "SMART " + h.Health
 		markColor := yellow
 		if diskHealthOK(h) {
@@ -168,10 +170,10 @@ func buildHealthRows(s model.Snapshot, landscape bool) []string {
 			sleepMark = " " + blue + "SLEEP" + reset
 		}
 		if landscape {
-			rows = append(rows, fmt.Sprintf(" %s%-*s%s %s%-5s%s %s%s%s %s%s%s%s", lightGray, deviceW, trunc(strings.TrimSpace(h.Device), deviceW), reset, white, strings.TrimSpace(h.Temperature), reset, markColor, mark, reset, gray, diskHealthDetails(h, true), reset, sleepMark))
+			rows = append(rows, fmt.Sprintf(" %s%s%s %s%-5s%s %s%s%s %s%s%s%s", lightGray, padRightCells(strings.TrimSpace(label), deviceW), reset, white, strings.TrimSpace(h.Temperature), reset, markColor, mark, reset, gray, diskHealthDetails(h, true), reset, sleepMark))
 			continue
 		}
-		rows = append(rows, fmt.Sprintf("%s│ %s%-*s%s  %-5s %s%s%s %s%s%s%s", white, lightGray, deviceW, trunc(h.Device, deviceW), reset, h.Temperature, markColor, mark, reset, gray, diskHealthDetails(h, false), reset, sleepMark))
+		rows = append(rows, fmt.Sprintf("%s│ %s%s%s  %-5s %s%s%s %s%s%s%s", white, lightGray, padRightCells(label, deviceW), reset, h.Temperature, markColor, mark, reset, gray, diskHealthDetails(h, false), reset, sleepMark))
 	}
 	return rows
 }
