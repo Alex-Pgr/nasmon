@@ -8,10 +8,9 @@ import (
 	"nasmon/internal/model"
 )
 
-// renderRegularInteractiveAdaptive is the canonical regular runtime layout.
-// It selects/sorts Docker rows before rendering and composes already-built
-// section rows directly; no rendered ANSI frame is parsed or rewritten.
-func (r Renderer) renderRegularInteractiveAdaptive(s model.Snapshot, w, rows int, mode DockerSortMode) string {
+// renderRegular is the canonical regular layout. It selects and sorts Docker
+// rows before rendering and composes already-built section rows directly.
+func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMode) string {
 	fullRows := regularFixedRows(s, 5) + len(s.Containers)
 	compactHeader := rows > 0 && fullRows > rows
 
