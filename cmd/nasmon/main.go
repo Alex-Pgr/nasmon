@@ -10,10 +10,17 @@ import (
 	"time"
 
 	"nasmon/internal/app"
+	"nasmon/internal/doctor"
 	"nasmon/internal/model"
 	"nasmon/internal/statefile"
 	"nasmon/internal/tui"
 )
+
+func printUsage() {
+	fmt.Println("usage: nasmon [--standalone] [refresh-seconds]")
+	fmt.Println("       nasmon doctor")
+	fmt.Println("       nasmon reads shared state from nasmond by default")
+}
 
 func parseArgs(cfg *app.Config) (standalone bool, err error) {
 	intervalSet := false
@@ -22,8 +29,7 @@ func parseArgs(cfg *app.Config) (standalone bool, err error) {
 		case "--standalone":
 			standalone = true
 		case "-h", "--help":
-			fmt.Println("usage: nasmon [--standalone] [refresh-seconds]")
-			fmt.Println("       nasmon reads shared state from nasmond by default")
+			printUsage()
 			os.Exit(0)
 		default:
 			if intervalSet {
@@ -48,6 +54,14 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "nasmon: cannot load config: %v\n", err)
 		os.Exit(1)
+	}
+	if len(os.Args) == 2 && os.Args[1] == "doctor" {
+		report := doctor.Run(cfg)
+		report.Write(os.Stdout)
+		if report.Failed() {
+			os.Exit(1)
+		}
+		return
 	}
 	standalone, err := parseArgs(&cfg)
 	if err != nil {
