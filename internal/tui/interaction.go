@@ -103,10 +103,55 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 	return rows, draw, rows <= 30 && cols >= 80
 }
 
+func (r Renderer) DockerPageSize(s model.Snapshot, rows, cols int) int {
+	effectiveRows, _, landscape := effectiveLayout(r, rows, cols)
+	if !landscape || effectiveRows <= 0 {
+		return len(s.Containers)
+	}
+	healthRows := len(buildHealthRows(s, true)) + len(r.collectorWarningRows(s, true))
+	lowerRows := len(s.DiskUsage)
+	if healthRows > lowerRows {
+		lowerRows = healthRows
+	}
+	upperRows := landscapeSystemRows(s)
+	if dockerRows := 1 + len(s.Containers); dockerRows > upperRows {
+		upperRows = dockerRows
+	}
+	if 8+upperRows+lowerRows <= effectiveRows {
+		return len(s.Containers)
+	}
+	page := effectiveRows - 7 - lowerRows
+	if page < 0 {
+		page = 0
+	}
+	if page > len(s.Containers) {
+		page = len(s.Containers)
+	}
+	return page
+}
+
+func ClampDockerOffset(offset, total, page int) int {
+	if total <= 0 || page <= 0 || page >= total {
+		return 0
+	}
+	maxOffset := total - page
+	if offset < 0 {
+		return 0
+	}
+	if offset > maxOffset {
+		return maxOffset
+	}
+	return offset
+}
+
 func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode DockerSortMode) string {
+	return r.RenderInteractiveView(s, rows, cols, mode, 0)
+}
+
+func (r Renderer) RenderInteractiveView(s model.Snapshot, rows, cols int, mode DockerSortMode, dockerOffset int) string {
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
 	if landscape {
-		return r.renderLandscape(s, w, effectiveRows, mode)
+		return r.renderLandscape(s, w, effectiveRows, mode, dockerOffset)
 	}
 	return r.renderRegular(s, w, effectiveRows, mode)
 }
@@ -115,9 +160,6 @@ func terminalFrameLine(content string) string {
 	return "\033[2K\r" + content + "\n"
 }
 
-// DockerSortForClick maps an SGR mouse cell coordinate to the Docker header.
-// The empty space within each column is intentionally clickable too, which is
-// much easier to hit on a phone than the label glyphs alone.
 func DockerSortForClick(frame string, x, y int, current DockerSortMode) (DockerSortMode, bool) {
 	if x < 1 || y < 1 {
 		return current, false
