@@ -160,21 +160,35 @@ func terminalFrameLine(content string) string {
 	return "\033[2K\r" + content + "\n"
 }
 
+func dockerSortHeader(lines []string, y int) (string, bool) {
+	for _, offset := range []int{0, -1, 1, -2, 2} {
+		candidate := y + offset
+		if candidate < 1 || candidate > len(lines) {
+			continue
+		}
+		line := lines[candidate-1]
+		nameAt := cellIndex(line, "NAMES")
+		ramAt := cellIndex(line, "RAM")
+		statusAt := cellIndex(line, "STATUS")
+		if nameAt >= 0 && ramAt > nameAt && statusAt > ramAt {
+			return line, true
+		}
+	}
+	return "", false
+}
+
 func DockerSortForClick(frame string, x, y int, current DockerSortMode) (DockerSortMode, bool) {
 	if x < 1 || y < 1 {
 		return current, false
 	}
 	lines := strings.Split(frame, "\n")
-	if y > len(lines) {
+	line, ok := dockerSortHeader(lines, y)
+	if !ok {
 		return current, false
 	}
-	line := lines[y-1]
 	nameAt := cellIndex(line, "NAMES")
 	ramAt := cellIndex(line, "RAM")
 	statusAt := cellIndex(line, "STATUS")
-	if nameAt < 0 || ramAt <= nameAt || statusAt <= ramAt {
-		return current, false
-	}
 
 	pos := x - 1
 	next := current
