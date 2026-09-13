@@ -15,6 +15,9 @@ type DiskUsage struct {
 
 type DiskHealth struct {
 	Device      string
+	Vendor      string
+	Model       string
+	Brand       string
 	Temperature string
 	Health      string
 	Reallocated int64

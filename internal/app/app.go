@@ -125,6 +125,7 @@ func (a *App) Bootstrap() {
 	a.Net.CollectIP(a.Store)
 	a.Net.CollectTraffic(a.Store)
 	a.Disk.CollectUsage(a.Store)
+	collect.CollectDiskIdentities(a.Disk.HealthDevices(), a.Store)
 	a.Disk.CollectIO(a.Store)
 	collect.RefreshDiskActivity(a.Disk.Devices())
 	collect.CollectGPUUsage(a.Store)
@@ -150,6 +151,7 @@ func (a *App) Start(ctx context.Context) {
 	}
 	go periodic(ctx, a.Config.DiskInterval, false, func() {
 		a.Disk.CollectUsage(a.Store)
+		collect.CollectDiskIdentities(a.Disk.HealthDevices(), a.Store)
 		a.ping()
 	})
 	go periodic(ctx, a.Config.DiskPowerInterval, true, func() {

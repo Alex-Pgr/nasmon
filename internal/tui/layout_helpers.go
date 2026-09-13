@@ -4,8 +4,8 @@ import "nasmon/internal/model"
 
 func healthDeviceWidth(health []model.DiskHealth) int {
 	width := 3
-	for _, h := range health {
-		if n := cellWidth(h.Device); n > width {
+	for _, label := range diskHealthLabels(health) {
+		if n := cellWidth(label); n > width {
 			width = n
 		}
 	}

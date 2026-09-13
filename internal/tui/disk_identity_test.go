@@ -6,24 +6,6 @@ import (
 	"nasmon/internal/model"
 )
 
-func TestNormalizeDiskBrand(t *testing.T) {
-	cases := []struct {
-		vendor string
-		model  string
-		want   string
-	}{
-		{"", "MZALQ256HBJD-00BL1", "Samsung"},
-		{"", "ADATA SX6000PNP", "ADATA"},
-		{"ATA", "ST1000LM035-1RK172", "Seagate"},
-		{"ATA", "WDC WD40EFRX", "WD"},
-	}
-	for _, tc := range cases {
-		if got := normalizeDiskBrand(tc.vendor, tc.model); got != tc.want {
-			t.Fatalf("normalizeDiskBrand(%q, %q) = %q, want %q", tc.vendor, tc.model, got, tc.want)
-		}
-	}
-}
-
 func TestShortDiskID(t *testing.T) {
 	cases := map[string]string{
 		"nvme0n1":  "0n1",
@@ -38,22 +20,30 @@ func TestShortDiskID(t *testing.T) {
 	}
 }
 
-func TestDecorateDiskHealthAlignsBrands(t *testing.T) {
-	s := model.Snapshot{DiskHealth: []model.DiskHealth{
-		{Device: "nvme0n1"},
-		{Device: "nvme1n1"},
-		{Device: "sda"},
-	}}
-	brands := map[string]string{
-		"nvme0n1": "Samsung",
-		"nvme1n1": "ADATA",
-		"sda":     "Seagate",
+func TestDiskHealthLabelsAlignBrandsWithoutIO(t *testing.T) {
+	health := []model.DiskHealth{
+		{Device: "nvme0n1", Brand: "Samsung"},
+		{Device: "nvme1n1", Brand: "ADATA"},
+		{Device: "sda", Brand: "Seagate"},
 	}
-	decorateDiskHealthWithBrand(&s, func(device string) string { return brands[device] })
+	got := diskHealthLabels(health)
 	want := []string{"Samsung (0n1)", "ADATA   (1n1)", "Seagate (sda)"}
-	for i, h := range s.DiskHealth {
-		if h.Device != want[i] {
-			t.Fatalf("DiskHealth[%d].Device = %q, want %q", i, h.Device, want[i])
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("label[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestDiskHealthLabelsUseDisplayWidth(t *testing.T) {
+	health := []model.DiskHealth{
+		{Device: "sda", Brand: "磁盘"},
+		{Device: "sdb", Brand: "Disk"},
+	}
+	labels := diskHealthLabels(health)
+	openA := cellIndex(labels[0], "(")
+	openB := cellIndex(labels[1], "(")
+	if openA != openB {
+		t.Fatalf("brand columns differ: %q (%d), %q (%d)", labels[0], openA, labels[1], openB)
 	}
 }
