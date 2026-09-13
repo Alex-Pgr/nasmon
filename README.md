@@ -84,20 +84,35 @@ For rotational drives, `hdparm -C` is queried independently every 60 seconds by 
 
 Docker is read through `/var/run/docker.sock`. The user running `nasmond` must have access to that socket, normally through membership in the `docker` group.
 
-## Suggested installation
+## Installation and upgrades
+
+Run the installer as your normal login user from the repository root:
 
 ```bash
-sudo install -m 0755 nasmon /usr/local/bin/nasmon
-sudo install -m 0755 nasmond /usr/local/bin/nasmond
-sudo install -m 0644 nasmond.service.example /etc/systemd/system/nasmond.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now nasmond
-nasmon
+./install.sh
 ```
+
+The installer fails fast, runs `go test ./...`, builds static `nasmon` and `nasmond` binaries, installs them into `/usr/local/bin`, installs `/etc/systemd/system/nasmond.service`, runs `systemctl daemon-reload`, enables the service, restarts it, and verifies that it becomes active. Privileged installation steps use `sudo`; the Go build itself runs as the invoking user.
+
+By default the systemd service runs as the invoking user. Override that explicitly when needed:
+
+```bash
+NASMON_SERVICE_USER=cthulhu ./install.sh
+```
+
+For later upgrades:
+
+```bash
+git pull --ff-only && ./install.sh
+```
+
+Because the script uses `set -euo pipefail`, a failed test or build stops before installed binaries are replaced. The same script is safe to run repeatedly; existing binaries and the systemd unit are updated in place and `nasmond` is restarted only after successful tests/builds.
+
+Manual installation remains possible using `nasmond.service.example`, but `install.sh` is the preferred path.
 
 Check the collector with:
 
 ```bash
-systemctl status nasmond
+systemctl status nasmond --no-pager
 cat /run/nasmon/state.json | jq '.version, .written_at'
 ```
