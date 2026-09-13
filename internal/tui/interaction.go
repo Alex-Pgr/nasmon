@@ -17,6 +17,8 @@ const (
 	DockerSortRAMAsc
 )
 
+const mobileCompactMaxRows = 30
+
 func dockerSortLabels(mode DockerSortMode) (string, string) {
 	names, ram := "NAMES", "RAM"
 	switch mode {
@@ -88,11 +90,20 @@ func sortDockerContainers(containers, original []model.Container, mode DockerSor
 	return out
 }
 
-func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
+func configuredTerminalSize(r Renderer, rows, cols int) (int, int) {
 	if r.Config.ForceCols > 0 && r.Config.ForceRows > 0 {
-		cols = r.Config.ForceCols
-		rows = r.Config.ForceRows
+		return r.Config.ForceRows, r.Config.ForceCols
 	}
+	return rows, cols
+}
+
+func mobileCompactPortrait(r Renderer, rows, cols int) bool {
+	rows, cols = configuredTerminalSize(r, rows, cols)
+	return rows > 0 && rows <= mobileCompactMaxRows && cols > 0 && cols < 80
+}
+
+func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
+	rows, cols = configuredTerminalSize(r, rows, cols)
 	if cols < r.Config.MinTermWidth {
 		cols = r.Config.MinTermWidth
 	}
@@ -104,7 +115,11 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 }
 
 func (r Renderer) DockerPageSize(s model.Snapshot, rows, cols int) int {
+	mobileCompact := mobileCompactPortrait(r, rows, cols)
 	effectiveRows, _, landscape := effectiveLayout(r, rows, cols)
+	if mobileCompact {
+		return ultraCompactDockerPageSize(len(s.Containers), effectiveRows)
+	}
 	if !landscape || effectiveRows <= 0 {
 		return len(s.Containers)
 	}
@@ -152,8 +167,9 @@ func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode Docke
 }
 
 func (r Renderer) RenderInteractiveView(s model.Snapshot, rows, cols int, mode DockerSortMode, dockerOffset int) string {
+	mobileCompact := mobileCompactPortrait(r, rows, cols)
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
-	if landscape && effectiveRows <= ultraCompactMaxRows {
+	if mobileCompact || (landscape && effectiveRows <= ultraCompactMaxRows) {
 		return r.renderUltraCompact(s, w, effectiveRows, mode, dockerOffset)
 	}
 	if landscape {
