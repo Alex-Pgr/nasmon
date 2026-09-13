@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -42,18 +41,4 @@ func diskHealthLabels(health []model.DiskHealth) []string {
 		labels[i] = brands[i] + strings.Repeat(" ", pad) + " (" + shortDiskID(h.Device) + ")"
 	}
 	return labels
-}
-
-func diskHealthIdentityDetails(h model.DiskHealth) string {
-	parts := make([]string, 0, 2)
-	if v := strings.TrimSpace(h.Vendor); v != "" {
-		parts = append(parts, v)
-	}
-	if m := strings.TrimSpace(h.Model); m != "" {
-		parts = append(parts, m)
-	}
-	if len(parts) == 0 {
-		return h.Device
-	}
-	return fmt.Sprintf("%s [%s]", strings.Join(parts, " "), h.Device)
 }
