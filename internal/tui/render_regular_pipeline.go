@@ -56,13 +56,17 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMo
 
 	addn("")
 	addn(white + "┌── Health" + reset)
+	for _, row := range r.collectorWarningRows(s, false) {
+		addn(row)
+	}
 	for _, row := range buildHealthRows(s, false) {
 		addn(row)
 	}
 	addn(white + bottom(w) + reset)
 
 	addn("")
-	addn(white + "┌── Docker Services" + reset)
+	dockerTitle := "┌── Docker Services" + collectorTitleSuffix(s.DockerCollector, r.Config.DockerInterval)
+	addn(white + dockerTitle + reset)
 	for _, row := range buildDockerRows(containers, w, false, mode) {
 		addn(row)
 	}
