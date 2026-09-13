@@ -6,10 +6,10 @@ import (
 	"nasmon/internal/model"
 )
 
-func CollectSystemd(store *model.Store) {
+func CollectSystemd(store *model.Store) bool {
 	out, err := commandOutput("systemctl", "--failed", "--no-legend", "--plain")
 	if err != nil {
-		return
+		return false
 	}
 	n := 0
 	for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -18,4 +18,5 @@ func CollectSystemd(store *model.Store) {
 		}
 	}
 	store.Update(func(s *model.Snapshot) { s.FailedUnits = n })
+	return true
 }

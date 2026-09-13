@@ -79,21 +79,40 @@ func collectDockerMemory(c *http.Client, id string) (uint64, bool) {
 	return dockerMemoryUsage(st), true
 }
 
-func CollectDocker(store *model.Store) {
-	c := dockerHTTPClient
-	resp, err := c.Get("http://docker/containers/json?all=1")
+func collectDockerInspect(c *http.Client, id string, co *model.Container) {
+	resp, err := c.Get("http://docker/containers/" + id + "/json")
 	if err != nil {
 		return
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return
+	}
+	var ins dockerInspect
+	if json.NewDecoder(resp.Body).Decode(&ins) != nil {
+		return
+	}
+	co.Restarts = ins.RestartCount
+	if ins.State.Health != nil {
+		co.Health = ins.State.Health.Status
+	}
+}
+
+func CollectDocker(store *model.Store) bool {
+	c := dockerHTTPClient
+	resp, err := c.Get("http://docker/containers/json?all=1")
+	if err != nil {
+		return false
+	}
 	if resp.StatusCode/100 != 2 {
 		resp.Body.Close()
-		return
+		return false
 	}
 	var items []dockerListItem
 	decodeErr := json.NewDecoder(resp.Body).Decode(&items)
 	resp.Body.Close()
 	if decodeErr != nil {
-		return
+		return false
 	}
 
 	type collectedContainer struct {
@@ -101,51 +120,39 @@ func CollectDocker(store *model.Store) {
 		group     string
 	}
 	collected := make([]collectedContainer, 0, len(items))
-
 	for _, it := range items {
 		name := ""
 		if len(it.Names) > 0 {
 			name = strings.TrimPrefix(it.Names[0], "/")
 		}
-		co := model.Container{ID: it.ID, Name: name, Status: it.Status, State: it.State}
-		r, err := c.Get("http://docker/containers/" + it.ID + "/json")
-		if err == nil {
-			var ins dockerInspect
-			if json.NewDecoder(r.Body).Decode(&ins) == nil {
-				co.Restarts = ins.RestartCount
-				if ins.State.Health != nil {
-					co.Health = ins.State.Health.Status
-				}
-			}
-			r.Body.Close()
-		}
-
 		group := it.Labels["com.docker.compose.project"]
 		if group == "" {
-			// Non-Compose containers still get a deterministic alphabetical order.
 			group = name
 		}
-		collected = append(collected, collectedContainer{container: co, group: group})
+		collected = append(collected, collectedContainer{
+			container: model.Container{ID: it.ID, Name: name, Status: it.Status, State: it.State},
+			group:     group,
+		})
 	}
 
-	// Memory stats are sampled only for running containers. Four concurrent
-	// local Unix-socket requests keep collection latency low without creating a
-	// burst against the Docker daemon. This still runs only once per Docker
-	// collector interval (30s by default).
+	// Keep all per-container Docker API work behind one bounded pool. Each
+	// worker inspects a container and then, for running containers, samples its
+	// memory. This prevents sequential inspect latency from growing linearly
+	// with large stacks while avoiding an unbounded request burst.
 	sem := make(chan struct{}, 4)
 	var wg sync.WaitGroup
 	for i := range collected {
-		if collected[i].container.State != "running" {
-			continue
-		}
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 			sem <- struct{}{}
-			memory, ok := collectDockerMemory(c, collected[i].container.ID)
-			<-sem
-			if ok {
-				collected[i].container.MemoryBytes = memory
+			defer func() { <-sem }()
+			co := &collected[i].container
+			collectDockerInspect(c, co.ID, co)
+			if co.State == "running" {
+				if memory, ok := collectDockerMemory(c, co.ID); ok {
+					co.MemoryBytes = memory
+				}
 			}
 		}(i)
 	}
@@ -165,4 +172,5 @@ func CollectDocker(store *model.Store) {
 		out = append(out, item.container)
 	}
 	store.Update(func(s *model.Snapshot) { s.Containers = out })
+	return true
 }

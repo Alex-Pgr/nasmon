@@ -11,12 +11,16 @@ import (
 // renderRegular is the canonical regular layout. It selects and sorts Docker
 // rows before rendering and composes already-built section rows directly.
 func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMode) string {
-	fullRows := regularFixedRows(s, 5) + len(s.Containers)
+	collectorWarnings := r.collectorWarningRows(s, false)
+	fullRows := regularFixedRows(s, 5) + len(collectorWarnings) + len(s.Containers)
 	compactHeader := rows > 0 && fullRows > rows
 
 	containers := append([]model.Container(nil), s.Containers...)
 	if compactHeader && rows > 0 {
-		available := rows - regularFixedRows(s, 1)
+		available := rows - regularFixedRows(s, 1) - len(collectorWarnings)
+		if available < 0 {
+			available = 0
+		}
 		if available < len(containers) {
 			containers = selectDockerContainers(containers, available)
 		}
@@ -56,13 +60,17 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMo
 
 	addn("")
 	addn(white + "┌── Health" + reset)
+	for _, row := range collectorWarnings {
+		addn(row)
+	}
 	for _, row := range buildHealthRows(s, false) {
 		addn(row)
 	}
 	addn(white + bottom(w) + reset)
 
 	addn("")
-	addn(white + "┌── Docker Services" + reset)
+	dockerTitle := "┌── Docker Services" + collectorTitleSuffix(s.DockerCollector, r.Config.DockerInterval)
+	addn(white + dockerTitle + reset)
 	for _, row := range buildDockerRows(containers, w, false, mode) {
 		addn(row)
 	}

@@ -368,29 +368,36 @@ func nvmeHealthWarning(h model.DiskHealth) bool {
 	return h.SpareThreshold > 0 && h.AvailableSpare < h.SpareThreshold
 }
 
-func CollectDiskTemps(devs []string, quietWindow time.Duration, store *model.Store) {
+func CollectDiskTemps(devs []string, quietWindow time.Duration, store *model.Store) bool {
 	updates := map[string]model.DiskHealth{}
+	success := true
 	for _, d := range devs {
 		if !shouldPollDisk(d, quietWindow) {
 			continue
 		}
-		txt, _ := smartctl(d, "-n", "standby,0", "-A")
+		txt, err := smartctl(d, "-n", "standby,0", "-A")
 		if sleeping(txt) {
 			updates[d] = model.DiskHealth{Sleeping: true}
-		} else {
-			updates[d] = model.DiskHealth{Temperature: parseTemp(txt)}
+			continue
 		}
+		if err != nil {
+			success = false
+			continue
+		}
+		updates[d] = model.DiskHealth{Temperature: parseTemp(txt)}
 	}
 	mergeDiskHealth(store, devs, updates, mergeTemperatureHealth)
+	return success
 }
 
-func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) {
+func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) bool {
 	snap := store.Snapshot()
 	previous := map[string]model.DiskHealth{}
 	for _, h := range snap.DiskHealth {
 		previous[h.Device] = h
 	}
 	updates := map[string]model.DiskHealth{}
+	success := true
 	for _, d := range devs {
 		h := previous[d]
 		h.Device = d
@@ -398,12 +405,16 @@ func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) 
 		if !shouldPollDisk(d, quietWindow) {
 			continue
 		}
-		txt, _ := smartctl(d, "-n", "standby,0", "-H", "-A")
+		txt, err := smartctl(d, "-n", "standby,0", "-H", "-A")
 		if sleeping(txt) {
 			if h.Health == "" {
 				h.Health = "PENDING"
 			}
 			updates[d] = h
+			continue
+		}
+		if err != nil {
+			success = false
 			continue
 		}
 		switch {
@@ -446,4 +457,5 @@ func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) 
 		updates[d] = h
 	}
 	mergeDiskHealth(store, devs, updates, mergeSMARTHealth)
+	return success
 }

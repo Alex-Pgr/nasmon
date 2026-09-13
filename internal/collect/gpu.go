@@ -39,13 +39,13 @@ func CollectGPUUsage(store *model.Store) {
 	store.Update(func(s *model.Snapshot) { s.GPUUsage = usage })
 }
 
-func CollectGPU(helper string, store *model.Store) {
+func CollectGPU(helper string, store *model.Store) bool {
 	if helper == "" {
-		return
+		return false
 	}
 	out, err := commandCombinedOutput("sudo", "-n", helper)
 	if err != nil {
-		return
+		return false
 	}
 	text := string(out)
 	var temp *float64
@@ -70,4 +70,5 @@ func CollectGPU(helper string, store *model.Store) {
 		}
 	}
 	store.Update(func(s *model.Snapshot) { s.GPUTempC = temp; s.GPUVCN = vcn })
+	return true
 }
