@@ -87,7 +87,6 @@ func (c *CPUCollector) Collect(store *model.Store) {
 
 	store.Update(func(s *model.Snapshot) {
 		s.CPUUsage = usage
-		s.CPUPercent = usage
 		s.IOWait = ioPct
 	})
 }

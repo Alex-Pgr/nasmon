@@ -41,12 +41,23 @@ func TestWriteAtomicReadRoundTrip(t *testing.T) {
 	if err := WriteAtomic(path, want); err != nil {
 		t.Fatalf("WriteAtomic: %v", err)
 	}
+	state, err := ReadState(path)
+	if err != nil {
+		t.Fatalf("ReadState: %v", err)
+	}
+	if state.WrittenAt.IsZero() {
+		t.Fatalf("ReadState lost written_at metadata")
+	}
+	if !reflect.DeepEqual(state.Snapshot, want) {
+		t.Fatalf("round trip mismatch\ngot:  %#v\nwant: %#v", state.Snapshot, want)
+	}
+
 	got, err := Read(path)
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("round trip mismatch\ngot:  %#v\nwant: %#v", got, want)
+		t.Fatalf("compat Read mismatch\ngot:  %#v\nwant: %#v", got, want)
 	}
 
 	info, err := os.Stat(path)
@@ -81,6 +92,29 @@ func TestWriteAtomicReadRoundTrip(t *testing.T) {
 	}
 	if len(matches) != 0 {
 		t.Fatalf("temporary state files left behind: %v", matches)
+	}
+}
+
+func TestWriteAtomicDoesNotPersistClientFreshness(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	snapshot := model.Snapshot{CPUUsage: 42, StateStale: true, StateAge: time.Hour}
+	if err := WriteAtomic(path, snapshot); err != nil {
+		t.Fatalf("WriteAtomic: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read raw state: %v", err)
+	}
+	text := string(data)
+	if strings.Contains(text, "StateStale") || strings.Contains(text, "StateAge") {
+		t.Fatalf("client-only freshness fields were persisted: %s", text)
+	}
+	state, err := ReadState(path)
+	if err != nil {
+		t.Fatalf("ReadState: %v", err)
+	}
+	if state.Snapshot.StateStale || state.Snapshot.StateAge != 0 {
+		t.Fatalf("client-only freshness metadata survived round trip: %+v", state.Snapshot)
 	}
 }
 

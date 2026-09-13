@@ -52,6 +52,13 @@ func center(s string, w int) string {
 	return rep(" ", (w-l)/2) + s
 }
 
+func staleSuffix(s model.Snapshot) string {
+	if !s.StateStale {
+		return ""
+	}
+	return yellow + " • DAEMON STALE " + dur(s.StateAge) + reset
+}
+
 func pctColor(p int, kind string) string {
 	switch kind {
 	case "cpu":

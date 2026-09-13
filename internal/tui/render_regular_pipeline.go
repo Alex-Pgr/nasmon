@@ -30,11 +30,12 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMo
 		n++
 	}
 	if compactHeader {
-		addn(cyan + center(fmt.Sprintf("NAS Health Monitor %s", r.Config.MainInterval), w) + reset)
+		title := fmt.Sprintf("NAS Health Monitor %s", r.Config.MainInterval) + staleSuffix(s)
+		addn(cyan + center(title, w) + reset)
 	} else {
 		info := fmt.Sprintf("%s • Обновление: %s", s.UpdatedAt.Format("2006-01-02 15:04:05"), r.Config.MainInterval)
 		addn(cyan + full(w) + reset)
-		addn(white + center("NAS Health Monitor", w) + reset)
+		addn(white + center("NAS Health Monitor"+staleSuffix(s), w) + reset)
 		addn(gray + center(trunc(info, w), w) + reset)
 		addn(cyan + full(w) + reset)
 		addn("")

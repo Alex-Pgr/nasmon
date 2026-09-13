@@ -2,7 +2,6 @@ package collect
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -44,7 +43,7 @@ func CollectGPU(helper string, store *model.Store) {
 	if helper == "" {
 		return
 	}
-	out, err := exec.Command("sudo", "-n", helper).CombinedOutput()
+	out, err := commandCombinedOutput("sudo", "-n", helper)
 	if err != nil {
 		return
 	}
