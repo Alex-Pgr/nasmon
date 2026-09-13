@@ -192,34 +192,72 @@ func diskPowerState(dev string) (bool, bool) {
 	return false, false
 }
 
+type diskHealthMerge func(*model.DiskHealth, model.DiskHealth)
+
+func mergeDiskHealth(store *model.Store, devs []string, updates map[string]model.DiskHealth, merge diskHealthMerge) {
+	store.Update(func(s *model.Snapshot) {
+		current := make(map[string]model.DiskHealth, len(s.DiskHealth))
+		for _, h := range s.DiskHealth {
+			current[h.Device] = h
+		}
+		out := make([]model.DiskHealth, 0, len(devs))
+		for _, dev := range devs {
+			h := current[dev]
+			h.Device = dev
+			if update, ok := updates[dev]; ok {
+				merge(&h, update)
+			}
+			out = append(out, h)
+		}
+		s.DiskHealth = out
+	})
+}
+
+func mergePowerHealth(dst *model.DiskHealth, src model.DiskHealth) {
+	dst.Sleeping = src.Sleeping
+}
+
+func mergeTemperatureHealth(dst *model.DiskHealth, src model.DiskHealth) {
+	if src.Sleeping {
+		if dst.Temperature == "" {
+			dst.Temperature = "N/A"
+		}
+		return
+	}
+	dst.Temperature = src.Temperature
+}
+
+func mergeSMARTHealth(dst *model.DiskHealth, src model.DiskHealth) {
+	dst.Health = src.Health
+	dst.NVMe = src.NVMe
+	dst.NVMeMetrics = src.NVMeMetrics
+	dst.PercentageUsed = src.PercentageUsed
+	dst.AvailableSpare = src.AvailableSpare
+	dst.SpareThreshold = src.SpareThreshold
+	dst.CriticalWarning = src.CriticalWarning
+	dst.MediaErrors = src.MediaErrors
+	dst.ErrorLogEntries = src.ErrorLogEntries
+	dst.Reallocated = src.Reallocated
+	dst.Pending = src.Pending
+	dst.Uncorrect = src.Uncorrect
+}
+
 // CollectDiskPowerState uses ATA CHECK POWER MODE through hdparm -C. This does
 // not spin up a standby disk and is intentionally independent from SMART data,
 // so the last known health/temperature remain visible while the drive sleeps.
 func CollectDiskPowerState(devs []string, store *model.Store) {
-	snap := store.Snapshot()
-	m := map[string]model.DiskHealth{}
-	for _, h := range snap.DiskHealth {
-		m[h.Device] = h
-	}
+	updates := map[string]model.DiskHealth{}
 	for _, d := range devs {
-		h := m[d]
-		h.Device = d
 		if !isRotational(d) {
-			h.Sleeping = false
-			m[d] = h
+			updates[d] = model.DiskHealth{Sleeping: false}
 			continue
 		}
 		asleep, ok := diskPowerState(d)
 		if ok {
-			h.Sleeping = asleep
+			updates[d] = model.DiskHealth{Sleeping: asleep}
 		}
-		m[d] = h
 	}
-	out := make([]model.DiskHealth, 0, len(devs))
-	for _, d := range devs {
-		out = append(out, m[d])
-	}
-	store.Update(func(s *model.Snapshot) { s.DiskHealth = out })
+	mergeDiskHealth(store, devs, updates, mergePowerHealth)
 }
 
 func sleeping(text string) bool {
@@ -331,61 +369,43 @@ func nvmeHealthWarning(h model.DiskHealth) bool {
 }
 
 func CollectDiskTemps(devs []string, quietWindow time.Duration, store *model.Store) {
-	snap := store.Snapshot()
-	m := map[string]model.DiskHealth{}
-	for _, h := range snap.DiskHealth {
-		m[h.Device] = h
-	}
+	updates := map[string]model.DiskHealth{}
 	for _, d := range devs {
-		h := m[d]
-		h.Device = d
 		if !shouldPollDisk(d, quietWindow) {
-			m[d] = h
 			continue
 		}
 		txt, _ := smartctl(d, "-n", "standby,0", "-A")
 		if sleeping(txt) {
-			h.Sleeping = true
-			if h.Temperature == "" {
-				h.Temperature = "N/A"
-			}
+			updates[d] = model.DiskHealth{Sleeping: true}
 		} else {
-			h.Sleeping = false
-			h.Temperature = parseTemp(txt)
+			updates[d] = model.DiskHealth{Temperature: parseTemp(txt)}
 		}
-		m[d] = h
 	}
-	out := make([]model.DiskHealth, 0, len(devs))
-	for _, d := range devs {
-		out = append(out, m[d])
-	}
-	store.Update(func(s *model.Snapshot) { s.DiskHealth = out })
+	mergeDiskHealth(store, devs, updates, mergeTemperatureHealth)
 }
 
 func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) {
 	snap := store.Snapshot()
-	m := map[string]model.DiskHealth{}
+	previous := map[string]model.DiskHealth{}
 	for _, h := range snap.DiskHealth {
-		m[h.Device] = h
+		previous[h.Device] = h
 	}
+	updates := map[string]model.DiskHealth{}
 	for _, d := range devs {
-		h := m[d]
+		h := previous[d]
 		h.Device = d
 		h.NVMe = strings.HasPrefix(d, "nvme")
 		if !shouldPollDisk(d, quietWindow) {
-			m[d] = h
 			continue
 		}
 		txt, _ := smartctl(d, "-n", "standby,0", "-H", "-A")
 		if sleeping(txt) {
-			h.Sleeping = true
 			if h.Health == "" {
 				h.Health = "PENDING"
 			}
-			m[d] = h
+			updates[d] = h
 			continue
 		}
-		h.Sleeping = false
 		switch {
 		case strings.Contains(txt, "PASSED") || strings.Contains(txt, "SMART Health Status: OK"):
 			h.Health = "OK"
@@ -423,11 +443,7 @@ func CollectSMART(devs []string, quietWindow time.Duration, store *model.Store) 
 				}
 			}
 		}
-		m[d] = h
+		updates[d] = h
 	}
-	out := make([]model.DiskHealth, 0, len(devs))
-	for _, d := range devs {
-		out = append(out, m[d])
-	}
-	store.Update(func(s *model.Snapshot) { s.DiskHealth = out })
+	mergeDiskHealth(store, devs, updates, mergeSMARTHealth)
 }
