@@ -32,26 +32,35 @@ func TestSortDockerContainersModes(t *testing.T) {
 }
 
 func TestDockerSortForClick(t *testing.T) {
-	frame := "\033[2K\r│   NAMES       RAM  STATUS\n"
-	nameX := cellIndex(frame, "NAMES") + 1
-	ramX := cellIndex(frame, "RAM") + 1
-	statusX := cellIndex(frame, "STATUS") + 1
+	header := "\033[2K\r│   NAMES       RAM  STATUS"
+	frame := "top\nabove\n" + header + "\nbelow\nbottom\noutside\n"
+	nameX := cellIndex(header, "NAMES") + 1
+	ramX := cellIndex(header, "RAM") + 1
+	statusX := cellIndex(header, "STATUS") + 1
 
-	mode, changed := DockerSortForClick(frame, nameX, 1, DockerSortDefault)
+	mode, changed := DockerSortForClick(frame, nameX, 3, DockerSortDefault)
 	if !changed || mode != DockerSortNameAsc {
-		t.Fatalf("NAMES first click = %v, changed=%v", mode, changed)
+		t.Fatalf("NAMES exact click = %v, changed=%v", mode, changed)
 	}
-	mode, changed = DockerSortForClick(frame, nameX, 1, mode)
+	mode, changed = DockerSortForClick(frame, nameX, 3, mode)
 	if !changed || mode != DockerSortNameDesc {
 		t.Fatalf("NAMES second click = %v, changed=%v", mode, changed)
 	}
 	mode, changed = DockerSortForClick(frame, ramX, 1, DockerSortDefault)
 	if !changed || mode != DockerSortRAMDesc {
-		t.Fatalf("RAM first click = %v, changed=%v", mode, changed)
+		t.Fatalf("RAM header-2 click = %v, changed=%v", mode, changed)
 	}
-	mode, changed = DockerSortForClick(frame, statusX, 1, mode)
+	mode, changed = DockerSortForClick(frame, ramX, 5, DockerSortDefault)
+	if !changed || mode != DockerSortRAMDesc {
+		t.Fatalf("RAM header+2 click = %v, changed=%v", mode, changed)
+	}
+	mode, changed = DockerSortForClick(frame, statusX, 3, DockerSortRAMDesc)
 	if !changed || mode != DockerSortDefault {
 		t.Fatalf("STATUS click = %v, changed=%v", mode, changed)
+	}
+	mode, changed = DockerSortForClick(frame, ramX, 6, DockerSortDefault)
+	if changed || mode != DockerSortDefault {
+		t.Fatalf("RAM header+3 click unexpectedly matched: %v, changed=%v", mode, changed)
 	}
 }
 
