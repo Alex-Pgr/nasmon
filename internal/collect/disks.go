@@ -52,13 +52,12 @@ func mountForPath(path string, mounts []mountInfo) (mountInfo, bool) {
 	var bm mountInfo
 	for _, m := range mounts {
 		mp := filepath.Clean(m.MountPoint)
-		if clean == mp || (strings.HasPrefix(clean, mp+string(os.PathSeparator))) || mp == "/" {
+		if clean == mp || strings.HasPrefix(clean, mp+string(os.PathSeparator)) || mp == "/" {
 			if len(mp) > best {
 				best = len(mp)
 				bm = m
 			}
 		}
-	}
 	return bm, best >= 0
 }
 
@@ -136,25 +135,17 @@ func autoDiskMount(m mountInfo) bool {
 	return m.FSType != "squashfs"
 }
 
-func diskUsagePriority(path string) int {
-	switch filepath.Clean(path) {
-	case "/":
-		return 0
-	case "/mnt/ssd":
-		return 1
-	case "/mnt/fast":
-		return 2
-	case "/mnt/hdd":
-		return 3
-	default:
-		return 4
+func sortDiskUsage(usage []model.DiskUsage, priority map[string]int) {
+	const unconfigured = int(^uint(0) >> 1)
+	rank := func(path string) int {
+		if value, ok := priority[filepath.Clean(path)]; ok {
+			return value
+		}
+		return unconfigured
 	}
-}
-
-func sortDiskUsage(usage []model.DiskUsage) {
 	sort.SliceStable(usage, func(i, j int) bool {
-		pi := diskUsagePriority(usage[i].Path)
-		pj := diskUsagePriority(usage[j].Path)
+		pi := rank(usage[i].Path)
+		pj := rank(usage[j].Path)
 		if pi != pj {
 			return pi < pj
 		}
@@ -190,6 +181,8 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 	mounts := readMounts()
 	seen := map[string]bool{}
 	devSeen := map[string]bool{}
+	priority := map[string]int{"/": 0}
+	nextPriority := 1
 	var usage []model.DiskUsage
 	var devices []string
 
@@ -210,7 +203,9 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 		}
 	}
 
-	// Preserve the old explicitly configured paths first.
+	// Explicitly configured paths define the display order after root. The
+	// actual mount point is ranked so a configured subdirectory still orders
+	// its backing filesystem correctly.
 	for _, p := range d.paths {
 		if _, err := os.Stat(p); err != nil {
 			continue
@@ -218,6 +213,13 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 		m, ok := mountForPath(p, mounts)
 		if !ok {
 			continue
+		}
+		mp := filepath.Clean(m.MountPoint)
+		if mp != "/" {
+			if _, exists := priority[mp]; !exists {
+				priority[mp] = nextPriority
+				nextPriority++
+			}
 		}
 		addMount(m, p)
 	}
@@ -232,7 +234,7 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 		}
 		addMount(m, m.MountPoint)
 	}
-	sortDiskUsage(usage)
+	sortDiskUsage(usage, priority)
 
 	var su, st uint64
 	sp := 0
