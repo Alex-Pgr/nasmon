@@ -31,10 +31,9 @@ func TestSortDockerContainersModes(t *testing.T) {
 
 func TestDockerSortForClick(t *testing.T) {
 	frame := "\033[2K\r│   NAMES       RAM  STATUS\n"
-	plain := plainTerminalLine(frame)
-	nameX := runeIndex(plain, "NAMES") + 1
-	ramX := runeIndex(plain, "RAM") + 1
-	statusX := runeIndex(plain, "STATUS") + 1
+	nameX := cellIndex(frame, "NAMES") + 1
+	ramX := cellIndex(frame, "RAM") + 1
+	statusX := cellIndex(frame, "STATUS") + 1
 
 	mode, changed := DockerSortForClick(frame, nameX, 1, DockerSortDefault)
 	if !changed || mode != DockerSortNameAsc {
