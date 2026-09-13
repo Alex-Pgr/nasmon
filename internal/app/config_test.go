@@ -16,6 +16,10 @@ func clearConfigEnv(t *testing.T) {
 		"STORAGE_PATH",
 		"NAS_STATE_FILE",
 		"DISK_PATHS",
+		"MAIN_INTERVAL",
+		"STATE_INTERVAL",
+		"THERMAL_INTERVAL",
+		"SYSTEMD_INTERVAL",
 	} {
 		t.Setenv(name, "")
 	}
@@ -55,6 +59,15 @@ func TestDefaultConfigUsesPortableHostDefaults(t *testing.T) {
 	if cfg.StateFile != "/run/nasmon/state.json" {
 		t.Fatalf("StateFile = %q", cfg.StateFile)
 	}
+	if cfg.StateInterval != 5*time.Second {
+		t.Fatalf("StateInterval = %s, want 5s", cfg.StateInterval)
+	}
+	if cfg.ThermalInterval != 10*time.Second {
+		t.Fatalf("ThermalInterval = %s, want 10s", cfg.ThermalInterval)
+	}
+	if cfg.SystemdInterval != 60*time.Second {
+		t.Fatalf("SystemdInterval = %s, want 60s", cfg.SystemdInterval)
+	}
 }
 
 func TestDefaultConfigReadsHostOverrides(t *testing.T) {
@@ -88,12 +101,14 @@ func TestLoadConfigReadsFileAndEnvironmentWins(t *testing.T) {
 		"NAS_STATE_FILE",
 		"DISK_PATHS",
 		"MAIN_INTERVAL",
+		"STATE_INTERVAL",
+		"THERMAL_INTERVAL",
 	} {
 		unsetEnv(t, name)
 	}
 
 	path := filepath.Join(t.TempDir(), "nasmon.env")
-	content := "# host config\nNAS_INTERFACE=eno1\nGPU_INFO_HELPER=/opt/gpu-info\nSTORAGE_PATH=/srv/storage\nNAS_STATE_FILE=/tmp/nasmon-state.json\nDISK_PATHS=/,/srv/storage,/mnt/archive\nMAIN_INTERVAL=7\n"
+	content := "# host config\nNAS_INTERFACE=eno1\nGPU_INFO_HELPER=/opt/gpu-info\nSTORAGE_PATH=/srv/storage\nNAS_STATE_FILE=/tmp/nasmon-state.json\nDISK_PATHS=/,/srv/storage,/mnt/archive\nMAIN_INTERVAL=7\nSTATE_INTERVAL=9\nTHERMAL_INTERVAL=11\n"
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -113,8 +128,8 @@ func TestLoadConfigReadsFileAndEnvironmentWins(t *testing.T) {
 	if cfg.StateFile != "/tmp/nasmon-state.json" {
 		t.Fatalf("StateFile = %q", cfg.StateFile)
 	}
-	if cfg.MainInterval != 7*time.Second {
-		t.Fatalf("MainInterval = %s", cfg.MainInterval)
+	if cfg.MainInterval != 7*time.Second || cfg.StateInterval != 9*time.Second || cfg.ThermalInterval != 11*time.Second {
+		t.Fatalf("intervals not loaded: main=%s state=%s thermal=%s", cfg.MainInterval, cfg.StateInterval, cfg.ThermalInterval)
 	}
 	wantPaths := []string{"/", "/srv/storage", "/mnt/archive"}
 	if !reflect.DeepEqual(cfg.DiskPaths, wantPaths) {

@@ -126,8 +126,7 @@ func (a *App) Bootstrap() {
 	a.Net.CollectTraffic(a.Store)
 	a.Disk.CollectUsage(a.Store)
 	collect.CollectDiskIdentities(a.Disk.HealthDevices(), a.Store)
-	a.Disk.CollectIO(a.Store)
-	collect.RefreshDiskActivity(a.Disk.Devices())
+	a.Disk.CollectIOAndActivity(a.Store)
 	collect.CollectGPUUsage(a.Store)
 }
 
@@ -136,15 +135,18 @@ func (a *App) Start(ctx context.Context) {
 		a.CPU.Collect(a.Store)
 		collect.CollectMemory(a.Store)
 		collect.CollectLoadUptime(a.Store)
+		a.Net.CollectTraffic(a.Store)
+		a.Disk.CollectIOAndActivity(a.Store)
+		a.ping()
+	}
+	thermal := func() {
 		collect.CollectCPUTemp(a.Store)
 		collect.CollectFanRPM(a.Store)
 		collect.CollectGPUUsage(a.Store)
-		a.Net.CollectTraffic(a.Store)
-		a.Disk.CollectIO(a.Store)
-		collect.RefreshDiskActivity(a.Disk.Devices())
 		a.ping()
 	}
 	go periodic(ctx, a.Config.MainInterval, false, main)
+	go periodic(ctx, a.Config.ThermalInterval, false, thermal)
 	go periodic(ctx, a.Config.IPInterval, false, func() { a.Net.CollectIP(a.Store); a.ping() })
 	if a.Config.GPUHelper != "" {
 		go periodic(ctx, a.Config.GPUInterval, true, func() { a.collectGPU(); a.ping() })
