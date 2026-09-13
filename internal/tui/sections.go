@@ -168,10 +168,10 @@ func buildHealthRows(s model.Snapshot, landscape bool) []string {
 			sleepMark = " " + blue + "SLEEP" + reset
 		}
 		if landscape {
-			rows = append(rows, fmt.Sprintf(" %s%-*s%s %s%-5s%s %s%s%s %s%s%s%s", lightGray, deviceW, trunc(strings.TrimSpace(h.Device), deviceW), reset, white, strings.TrimSpace(h.Temperature), reset, markColor, mark, reset, gray, diskHealthDetails(h, true), reset+sleepMark))
+			rows = append(rows, fmt.Sprintf(" %s%-*s%s %s%-5s%s %s%s%s %s%s%s%s", lightGray, deviceW, trunc(strings.TrimSpace(h.Device), deviceW), reset, white, strings.TrimSpace(h.Temperature), reset, markColor, mark, reset, gray, diskHealthDetails(h, true), reset, sleepMark))
 			continue
 		}
-		rows = append(rows, fmt.Sprintf("%s│ %s%-*s%s  %-5s %s%s%s %s%s%s%s", white, lightGray, deviceW, trunc(h.Device, deviceW), reset, h.Temperature, markColor, mark, reset, gray, diskHealthDetails(h, false), reset+sleepMark))
+		rows = append(rows, fmt.Sprintf("%s│ %s%-*s%s  %-5s %s%s%s %s%s%s%s", white, lightGray, deviceW, trunc(h.Device, deviceW), reset, h.Temperature, markColor, mark, reset, gray, diskHealthDetails(h, false), reset, sleepMark))
 	}
 	return rows
 }
