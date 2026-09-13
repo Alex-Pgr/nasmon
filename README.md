@@ -57,11 +57,75 @@ nasmon --standalone 5
 
 ## ARM SBC support
 
-CI cross-builds both binaries for Linux `arm64` and Linux `arm` with `GOARM=7`, in addition to the normal amd64 build. The intended SBC targets include 64-bit Raspberry Pi OS and Armbian/Ubuntu installations on Raspberry Pi and Orange Pi; armv7 remains compile-supported for older 32-bit Raspberry Pi systems.
+The supported ARM target is **64-bit Linux (`arm64` / `aarch64`)** on modern Raspberry Pi and Orange Pi systems. The intended deployments are:
+
+- Raspberry Pi 4 and Raspberry Pi 5 running 64-bit Raspberry Pi OS;
+- Orange Pi boards running 64-bit Armbian or Ubuntu;
+- other 64-bit Linux SBCs with standard `/proc`, `/sys`, systemd, and Linux block/network interfaces may work, but are not specifically validated.
+
+CI cross-builds both binaries for Linux `arm64`. It also keeps an ARMv7 cross-build as a regression check, but old 32-bit Raspberry Pi systems are not part of the supported target set and are best-effort only.
 
 CPU temperature prefers the x86 `coretemp`/`k10temp` hwmon drivers when present, then uses Linux thermal zones whose type identifies a CPU/SoC/package sensor. This covers the common Raspberry Pi and Orange Pi thermal-zone layout without accidentally treating a GPU/DDR sensor as CPU temperature. Generic hwmon remains the final fallback.
 
 microSD/eMMC devices such as `mmcblk0` remain visible for disk usage, identity, and I/O, but are not sent to `smartctl`, because Linux MMC devices normally do not implement ATA/NVMe SMART. SATA/USB-SATA/NVMe devices continue to use the regular SMART pipeline.
+
+### ARM deployment checklist
+
+For a first install on a Raspberry Pi, Orange Pi, or another ARM SBC, start with the portable defaults and avoid creating `/etc/nasmon/nasmon.env` unless the host actually needs overrides. This validates that default-route network selection and generic storage discovery work correctly on the board.
+
+Check the OS, architecture, and Go toolchain before installation:
+
+```bash
+uname -a
+uname -m
+cat /etc/os-release
+go version
+```
+
+For supported systems, `uname -m` should normally report `aarch64`. Building from source requires Go 1.23 or newer.
+
+Optional disk-health tools can be installed on Debian/Ubuntu/Raspberry Pi OS/Armbian hosts with:
+
+```bash
+sudo apt update && sudo apt install -y smartmontools hdparm
+```
+
+Docker is optional and should only be installed if the host uses it.
+
+Install nasmon from the repository:
+
+```bash
+git clone https://github.com/Alex-Pgr/nas_monitoring.git
+cd nas_monitoring
+./install.sh
+```
+
+Immediately after installation, run:
+
+```bash
+nasmon doctor
+systemctl status nasmond --no-pager
+```
+
+`WARN` is expected for optional integrations that are not installed or not used, such as Docker, `smartctl`, `hdparm`, or a GPU helper. `FAIL` indicates a required host/configuration problem that should be fixed before treating the installation as healthy.
+
+Inspect block devices and ARM thermal zones:
+
+```bash
+lsblk -o NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS
+for z in /sys/class/thermal/thermal_zone*; do echo "== $z =="; cat "$z/type" 2>/dev/null; cat "$z/temp" 2>/dev/null; done
+```
+
+On Raspberry Pi or Orange Pi systems using microSD/eMMC, devices such as `mmcblk0` should remain visible in disk usage and I/O metrics, but they should not cause the SMART or disk-temperature collectors to report an error merely because MMC media does not support ATA/NVMe SMART.
+
+Finally, verify the published daemon state and open the TUI:
+
+```bash
+cat /run/nasmon/state.json | jq '{written_at, cpu_temp:.snapshot.cpu_temp_c, disks:.snapshot.disk_health}'
+nasmon
+```
+
+For a first real-board smoke test, the key things to verify are: CPU temperature is plausible, the network interface is selected without `NAS_INTERFACE`, `mmcblk*` storage is shown correctly, and there are no false SMART errors from the system microSD/eMMC device.
 
 ## Doctor
 
