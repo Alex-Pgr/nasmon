@@ -241,7 +241,7 @@ func parseTemp(text string) string {
 		if strings.Contains(ln, "Temperature_Celsius") || strings.Contains(ln, "Temperature_Case") || strings.Contains(ln, "Airflow_Temperature_Cel") || strings.Contains(ln, "Temperature_Internal") {
 			p := strings.Fields(ln)
 			if len(p) >= 10 {
-				if _, e := strconv.Atoi(p[9], 10); e == nil {
+				if _, e := strconv.Atoi(p[9]); e == nil {
 					return p[9] + "°C"
 				}
 			}
