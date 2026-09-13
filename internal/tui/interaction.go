@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -107,73 +106,15 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 	return rows, draw, rows <= 30 && cols >= 80
 }
 
-// RenderInteractive keeps adaptive filtering unchanged, then only reorders the
-// rows that actually fit on screen. Thus compact mode always retains all R>0
-// containers plus the top RAM consumers regardless of the selected sort mode.
+// RenderInteractive is the runtime entry point. Both layouts now compose
+// section rows directly; neither path parses or rewrites an already-rendered
+// ANSI frame.
 func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode DockerSortMode) string {
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
 	if landscape {
 		return r.renderLandscapeInteractiveAdaptive(s, w, effectiveRows, mode)
 	}
-
-	frame := r.RenderAdaptive(s, rows, cols)
-	containers := append([]model.Container(nil), s.Containers...)
-	fullRows := regularFixedRows(s, 5) + len(s.Containers)
-	compactHeader := effectiveRows > 0 && fullRows > effectiveRows
-	if compactHeader {
-		available := effectiveRows - regularFixedRows(s, 1)
-		if available < len(containers) {
-			containers = selectDockerContainers(containers, available)
-		}
-	}
-	containers = sortDockerContainers(containers, s.Containers, mode)
-	frame = rewriteDockerTable(frame, w, containers, mode)
-	return decorateRegularSystemBars(frame, w, s)
-}
-
-func rewriteDockerTable(frame string, w int, containers []model.Container, mode DockerSortMode) string {
-	lines := strings.SplitAfter(frame, "\n")
-	header := -1
-	for i, line := range lines {
-		plain := plainTerminalLine(line)
-		if strings.Contains(plain, "NAMES") && strings.Contains(plain, "RAM") && strings.Contains(plain, "STATUS") {
-			header = i
-			break
-		}
-	}
-	if header < 0 {
-		return frame
-	}
-
-	const ramW = 6
-	nameW := clamp(w/3, 10, 24)
-	statusW := w - 8 - nameW - ramW
-	if statusW < 6 {
-		statusW = 6
-	}
-	namesLabel, ramLabel := dockerSortLabels(mode)
-	lines[header] = terminalFrameLine(fmt.Sprintf("%s│   %-*s  %*s  STATUS%s", white, nameW, namesLabel, ramW, ramLabel, reset))
-
-	for i, c := range containers {
-		lineIndex := header + 1 + i
-		if lineIndex >= len(lines) {
-			break
-		}
-		icon, color := "●", blue
-		if c.State != "running" || c.Health == "unhealthy" {
-			icon, color = "⚠", yellow
-		} else if c.Health == "healthy" {
-			icon, color = "✓", green
-		}
-		txt := dockerStatus(c)
-		if txt == "" {
-			txt = c.State
-		}
-		txt += fmt.Sprintf(" R:%d", c.Restarts)
-		content := fmt.Sprintf("%s│ %s%s%s %s%-*s%s  %s%*s%s  %s%s%s", white, color, icon, reset, lightGray, nameW, trunc(c.Name, nameW), reset, gray, ramW, dockerMemoryLabel(c.MemoryBytes), reset, color, trunc(txt, statusW), reset)
-		lines[lineIndex] = terminalFrameLine(content)
-	}
-	return strings.Join(lines, "")
+	return r.renderRegularInteractiveAdaptive(s, w, effectiveRows, mode)
 }
 
 func terminalFrameLine(content string) string {
