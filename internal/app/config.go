@@ -169,15 +169,20 @@ func DefaultConfig() Config {
 	return configFromLookup(combinedLookup(nil))
 }
 
+// ConfigFilePath returns the host configuration file selected for this process.
+func ConfigFilePath() string {
+	path := strings.TrimSpace(os.Getenv("NASMON_CONFIG_FILE"))
+	if path == "" {
+		return DefaultConfigFile
+	}
+	return path
+}
+
 // LoadConfig loads the optional host config file and then overlays process
 // environment variables. This keeps nasmond and nasmon on the same state path,
 // intervals and host settings even when the client is launched from a shell.
 func LoadConfig() (Config, error) {
-	path := strings.TrimSpace(os.Getenv("NASMON_CONFIG_FILE"))
-	if path == "" {
-		path = DefaultConfigFile
-	}
-	values, err := parseEnvFile(path)
+	values, err := parseEnvFile(ConfigFilePath())
 	if err != nil {
 		return Config{}, err
 	}
