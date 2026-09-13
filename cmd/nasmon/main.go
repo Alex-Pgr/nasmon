@@ -77,7 +77,6 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 	draw := func() {
 		rows, cols := tui.Size()
 		snapshot := a.Store.Snapshot()
-		tui.DecorateDiskHealth(&snapshot)
 		lastFrame = renderer.RenderInteractive(snapshot, rows, cols, sortMode)
 		tui.Draw(lastFrame)
 	}
@@ -174,7 +173,6 @@ func runClient(ctx context.Context, cfg app.Config) {
 	draw := func(s model.Snapshot) {
 		s.StartedAt = clientStartedAt
 		applyStateFreshness(&s, lastWrittenAt, cfg.MainInterval)
-		tui.DecorateDiskHealth(&s)
 		rows, cols := tui.Size()
 		lastFrame = renderer.RenderInteractive(s, rows, cols, sortMode)
 		tui.Draw(lastFrame)
