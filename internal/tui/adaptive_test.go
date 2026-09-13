@@ -26,7 +26,7 @@ func TestSelectDockerContainersPrioritizesRestartsThenRAM(t *testing.T) {
 	}
 }
 
-func TestAdaptiveRegularFitsRowsAndUsesCompactHeader(t *testing.T) {
+func TestInteractiveRegularFitsRowsAndUsesCompactHeader(t *testing.T) {
 	cfg := app.Config{MainInterval: 2 * time.Second, MinTermWidth: 36, RightMargin: 2}
 	r := Renderer{Config: cfg}
 	s := model.Snapshot{
@@ -47,7 +47,7 @@ func TestAdaptiveRegularFitsRowsAndUsesCompactHeader(t *testing.T) {
 	s.Containers[0].Restarts = 2
 
 	const rows = 44
-	out := r.RenderAdaptive(s, rows, 58)
+	out := r.RenderInteractive(s, rows, 58, DockerSortDefault)
 	if got := strings.Count(out, "\n"); got > rows {
 		t.Fatalf("rendered %d rows, terminal has %d", got, rows)
 	}
