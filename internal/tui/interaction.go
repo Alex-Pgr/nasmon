@@ -131,6 +131,7 @@ func plainTerminalLine(s string) string {
 				i++
 				if c >= '@' && c <= '~' {
 					break
+				}
 			}
 			continue
 		}
