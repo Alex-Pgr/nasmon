@@ -55,18 +55,18 @@ func testMetricSnapshot() model.Snapshot {
 	cpuTemp := 45.0
 	gpuTemp := 41.0
 	return model.Snapshot{
-		FanRPM:          &rpm,
-		CPUUsage:        25,
-		CPUTempC:        &cpuTemp,
-		GPUUsage:        &gpu,
-		GPUTempC:        &gpuTemp,
-		GPUVCN:          "IDLE",
-		MemUsedBytes:    4 << 30,
-		MemTotalBytes:   16 << 30,
-		MemPercent:      25,
-		ZRAMUsedBytes:   1 << 30,
-		ZRAMTotalBytes:  4 << 30,
-		ZRAMPercent:     25,
+		FanRPM:         &rpm,
+		CPUUsage:       25,
+		CPUTempC:       &cpuTemp,
+		GPUUsage:       &gpu,
+		GPUTempC:       &gpuTemp,
+		GPUVCN:         "IDLE",
+		MemUsedBytes:   4 << 30,
+		MemTotalBytes:  16 << 30,
+		MemPercent:     25,
+		ZRAMUsedBytes:  1 << 30,
+		ZRAMTotalBytes: 4 << 30,
+		ZRAMPercent:    25,
 	}
 }
 

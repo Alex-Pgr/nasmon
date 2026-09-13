@@ -75,17 +75,17 @@ func TestLandscapeInteractiveShowsVerticalSystemMetrics(t *testing.T) {
 	cfg := app.Config{MainInterval: 2 * time.Second, MinTermWidth: 80, RightMargin: 2}
 	r := Renderer{Config: cfg}
 	s := model.Snapshot{
-		Uptime:          4*time.Hour + 12*time.Minute,
-		MemUsedBytes:    5 << 30,
-		MemTotalBytes:   16 << 30,
-		MemPercent:      31,
-		ZRAMUsedBytes:   1 << 30,
-		ZRAMTotalBytes:  4 << 30,
-		ZRAMPercent:     25,
-		SwapUsedBytes:   1 << 30,
-		SwapTotalBytes:  12 << 30,
-		SwapPercent:     8,
-		IOWait:          3,
+		Uptime:         4*time.Hour + 12*time.Minute,
+		MemUsedBytes:   5 << 30,
+		MemTotalBytes:  16 << 30,
+		MemPercent:     31,
+		ZRAMUsedBytes:  1 << 30,
+		ZRAMTotalBytes: 4 << 30,
+		ZRAMPercent:    25,
+		SwapUsedBytes:  1 << 30,
+		SwapTotalBytes: 12 << 30,
+		SwapPercent:    8,
+		IOWait:         3,
 	}
 	out := r.RenderInteractive(s, 30, 120, DockerSortDefault)
 	for _, want := range []string{"Uptime", "4h 12m", "ZRAM", "1.0/4.0G", "Swap", "1.0/12.0G", "IOwait", "3%"} {
