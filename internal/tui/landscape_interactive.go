@@ -34,10 +34,9 @@ func landscapeDiskWidths(usage []model.DiskUsage) (pathW, usedW, totalW int) {
 	return
 }
 
-// renderLandscapeInteractiveAdaptive keeps Docker filtering and user sorting
-// separate: first choose the important rows that fit, then sort only that
-// visible subset. The actual rendering is delegated to section row builders.
-func (r Renderer) renderLandscapeInteractiveAdaptive(s model.Snapshot, w, rows int, mode DockerSortMode) string {
+// renderLandscape selects the visible Docker subset before sorting, then lays
+// out the already-built section rows without post-render ANSI rewriting.
+func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSortMode) string {
 	lowerRows := len(s.DiskUsage)
 	if h := 1 + len(s.DiskHealth); h > lowerRows {
 		lowerRows = h
@@ -65,7 +64,7 @@ func (r Renderer) renderLandscapeInteractiveAdaptive(s model.Snapshot, w, rows i
 	}
 	copySnap.Containers = sortDockerContainers(copySnap.Containers, s.Containers, mode)
 
-	out := r.renderLandscapeInteractive(copySnap, w, mode)
+	out := r.layoutLandscape(copySnap, w, mode)
 	if !compactHeader {
 		return out
 	}
@@ -79,7 +78,7 @@ func (r Renderer) renderLandscapeInteractiveAdaptive(s model.Snapshot, w, rows i
 	return head.String() + strings.Join(parts[3:], "")
 }
 
-func (r Renderer) renderLandscapeInteractive(s model.Snapshot, w int, mode DockerSortMode) string {
+func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode) string {
 	var b strings.Builder
 	add(&b, cyan+full(w)+reset)
 	add(&b, white+center(fmt.Sprintf("NAS Health Monitor • %s • %s", time.Now().Format("15:04:05"), r.Config.MainInterval), w)+reset)
