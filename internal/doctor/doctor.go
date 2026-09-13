@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -242,8 +241,4 @@ func compactDuration(d time.Duration) string {
 		return fmt.Sprintf("%dm", int(d.Minutes()))
 	}
 	return fmt.Sprintf("%dh", int(d.Hours()))
-}
-
-func parentDir(path string) string {
-	return filepath.Dir(path)
 }
