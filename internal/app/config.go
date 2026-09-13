@@ -48,20 +48,30 @@ func envInt(name string) int {
 	return n
 }
 
+func envList(name string, def []string) []string {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return append([]string(nil), def...)
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if value := strings.TrimSpace(part); value != "" {
+			out = append(out, value)
+		}
+	}
+	if len(out) == 0 {
+		return append([]string(nil), def...)
+	}
+	return out
+}
+
 func DefaultConfig() Config {
-	iface := os.Getenv("NAS_INTERFACE")
-	if iface == "" {
-		iface = "enp1s0f1"
-	}
-	helper := os.Getenv("GPU_INFO_HELPER")
-	if helper == "" {
-		helper = "/usr/local/bin/nas-gpu-info"
-	}
-	storage := os.Getenv("STORAGE_PATH")
+	storage := strings.TrimSpace(os.Getenv("STORAGE_PATH"))
 	if storage == "" {
-		storage = "/mnt/hdd"
+		storage = "/"
 	}
-	stateFile := os.Getenv("NAS_STATE_FILE")
+	stateFile := strings.TrimSpace(os.Getenv("NAS_STATE_FILE"))
 	if stateFile == "" {
 		stateFile = "/run/nasmon/state.json"
 	}
@@ -77,11 +87,11 @@ func DefaultConfig() Config {
 		SMARTInterval:     envDuration("SMART_INTERVAL", time.Hour),
 		SystemdInterval:   envDuration("SYSTEMD_INTERVAL", 30*time.Second),
 		IPInterval:        envDuration("IP_INTERVAL", 60*time.Second),
-		Interface:         iface,
-		GPUHelper:         helper,
+		Interface:         strings.TrimSpace(os.Getenv("NAS_INTERFACE")),
+		GPUHelper:         strings.TrimSpace(os.Getenv("GPU_INFO_HELPER")),
 		StoragePath:       storage,
 		StateFile:         stateFile,
-		DiskPaths:         []string{"/", "/mnt/ssd", "/mnt/hdd"},
+		DiskPaths:         envList("DISK_PATHS", []string{"/"}),
 		RightMargin:       1,
 		MinTermWidth:      36,
 		OneShot:           os.Getenv("NAS_MONITOR_ONESHOT") == "1",

@@ -48,12 +48,12 @@ CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "$build_dir/nasmond" ./cmd/
 cat >"$service_tmp" <<EOF
 [Unit]
 Description=NAS Monitor collector daemon
-After=network.target docker.service
-Wants=docker.service
+After=network.target
 
 [Service]
 Type=simple
 User=$service_user
+EnvironmentFile=-/etc/nasmon/nasmon.env
 RuntimeDirectory=nasmon
 RuntimeDirectoryMode=0755
 ExecStart=/usr/local/bin/nasmond
@@ -67,6 +67,15 @@ EOF
 echo "==> Installing binaries"
 as_root install -m 0755 "$build_dir/nasmon" /usr/local/bin/nasmon
 as_root install -m 0755 "$build_dir/nasmond" /usr/local/bin/nasmond
+
+echo "==> Installing host configuration example"
+as_root install -d -m 0755 /etc/nasmon
+as_root install -m 0644 config/nasmon.env.example /etc/nasmon/nasmon.env.example
+if [[ ! -e /etc/nasmon/nasmon.env ]]; then
+  echo "    optional config: copy /etc/nasmon/nasmon.env.example to /etc/nasmon/nasmon.env"
+else
+  echo "    preserving existing /etc/nasmon/nasmon.env"
+fi
 
 echo "==> Installing systemd service for user $service_user"
 as_root install -m 0644 "$service_tmp" /etc/systemd/system/nasmond.service
@@ -84,3 +93,4 @@ echo "==> Installed successfully"
 echo "    nasmon:  /usr/local/bin/nasmon"
 echo "    nasmond: /usr/local/bin/nasmond"
 echo "    service: active (user: $service_user)"
+echo "    config:  /etc/nasmon/nasmon.env (optional, never overwritten)"

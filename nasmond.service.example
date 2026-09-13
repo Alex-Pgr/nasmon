@@ -1,11 +1,13 @@
 [Unit]
 Description=NAS Monitor collector daemon
-After=network.target docker.service
-Wants=docker.service
+After=network.target
 
 [Service]
 Type=simple
-User=cthulhu
+# For manual installation, replace YOUR_USER with the account that should
+# access Docker and any configured hardware helpers. install.sh fills this in.
+User=YOUR_USER
+EnvironmentFile=-/etc/nasmon/nasmon.env
 RuntimeDirectory=nasmon
 RuntimeDirectoryMode=0755
 ExecStart=/usr/local/bin/nasmond
