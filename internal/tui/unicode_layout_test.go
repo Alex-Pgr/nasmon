@@ -13,7 +13,7 @@ func TestUnicodeUserTextStaysWithinLandscapeWidth(t *testing.T) {
 	cfg := app.Config{MainInterval: 2 * time.Second, MinTermWidth: 80, RightMargin: 2}
 	r := Renderer{Config: cfg}
 	s := model.Snapshot{
-		DiskUsage: []model.DiskUsage{{Path: "/数据", UsedBytes: 4 << 30, TotalBytes: 10 << 30, Percent: 40}},
+		DiskUsage:  []model.DiskUsage{{Path: "/数据", UsedBytes: 4 << 30, TotalBytes: 10 << 30, Percent: 40}},
 		DiskHealth: []model.DiskHealth{{Device: "nvme0n1", Brand: "磁盘", Temperature: "40°C", Health: "OK"}},
 		Containers: []model.Container{{Name: "服务🙂", State: "running", Status: "Up 1h", MemoryBytes: 64 << 20}},
 	}
