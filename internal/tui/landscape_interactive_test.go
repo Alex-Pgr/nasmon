@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +93,46 @@ func TestLandscapeInteractiveShowsVerticalSystemMetrics(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("landscape system metric %q missing", want)
 		}
+	}
+}
+
+func TestUltraCompactMobilePrioritizesSummaryAndDocker(t *testing.T) {
+	cfg := app.Config{MainInterval: 2 * time.Second, DockerInterval: 30 * time.Second, MinTermWidth: 80, RightMargin: 2}
+	r := Renderer{Config: cfg}
+	containers := make([]model.Container, 8)
+	for i := range containers {
+		containers[i] = model.Container{Name: fmt.Sprintf("ctr-%d", i+1), State: "running", Status: "Up 1h", MemoryBytes: uint64(i+1) << 20}
+	}
+	s := model.Snapshot{
+		CPUUsage:       17,
+		MemUsedBytes:   6 << 30,
+		MemTotalBytes:  16 << 30,
+		ZRAMUsedBytes:  2 << 30,
+		ZRAMTotalBytes: 4 << 30,
+		SwapUsedBytes:  1 << 30,
+		SwapTotalBytes: 10 << 30,
+		DiskUsage:      []model.DiskUsage{{Path: "/mnt/fast", UsedBytes: 10 << 30, TotalBytes: 100 << 30}},
+		Containers:     containers,
+	}
+
+	out := r.RenderInteractiveView(s, 10, 120, DockerSortDefault, 2)
+	plain := stripANSI(out)
+	for _, want := range []string{"CPU 17%", "RAM 6.0/16.0G", "SWAP 1.0/10.0G", "Docker ↑ 3–7/8 ↓", "NAMES", "ctr-3", "ctr-7"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("ultra-compact output missing %q: %q", want, plain)
+		}
+	}
+	for _, unwanted := range []string{"ZRAM", "Disk Usage", "Health", "ctr-1", "ctr-2", "ctr-8"} {
+		if strings.Contains(plain, unwanted) {
+			t.Fatalf("ultra-compact output unexpectedly contains %q: %q", unwanted, plain)
+		}
+	}
+	if got := r.DockerPageSize(s, 10, 120); got != 5 {
+		t.Fatalf("ultra-compact Docker page size = %d, want 5", got)
+	}
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(lines) != 10 {
+		t.Fatalf("ultra-compact rendered rows = %d, want 10", len(lines))
 	}
 }
 
