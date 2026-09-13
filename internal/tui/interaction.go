@@ -114,6 +114,22 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 	return rows, draw, rows <= 30 && cols >= 80
 }
 
+func (r Renderer) regularDockerPageSize(s model.Snapshot, rows int) int {
+	collectorWarnings := r.collectorWarningRows(s, false)
+	fullRows := regularFixedRows(s, 5) + len(collectorWarnings) + len(s.Containers)
+	if rows <= 0 || fullRows <= rows {
+		return len(s.Containers)
+	}
+	page := rows - regularFixedRows(s, 1) - len(collectorWarnings)
+	if page < 0 {
+		page = 0
+	}
+	if page > len(s.Containers) {
+		page = len(s.Containers)
+	}
+	return page
+}
+
 func (r Renderer) DockerPageSize(s model.Snapshot, rows, cols int) int {
 	mobileCompact := mobileCompactPortrait(r, rows, cols)
 	effectiveRows, _, landscape := effectiveLayout(r, rows, cols)
@@ -121,7 +137,7 @@ func (r Renderer) DockerPageSize(s model.Snapshot, rows, cols int) int {
 		return ultraCompactDockerPageSize(len(s.Containers), effectiveRows)
 	}
 	if !landscape || effectiveRows <= 0 {
-		return len(s.Containers)
+		return r.regularDockerPageSize(s, effectiveRows)
 	}
 	if effectiveRows <= ultraCompactMaxRows {
 		return ultraCompactDockerPageSize(len(s.Containers), effectiveRows)
@@ -175,7 +191,7 @@ func (r Renderer) RenderInteractiveView(s model.Snapshot, rows, cols int, mode D
 	if landscape {
 		return r.renderLandscape(s, w, effectiveRows, mode, dockerOffset)
 	}
-	return r.renderRegular(s, w, effectiveRows, mode)
+	return r.renderRegular(s, w, effectiveRows, mode, dockerOffset)
 }
 
 func terminalFrameLine(content string) string {
