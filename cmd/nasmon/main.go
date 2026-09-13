@@ -108,15 +108,15 @@ func runStandalone(ctx context.Context, cfg app.Config) {
 	}
 }
 
-func readInitialState(ctx context.Context, path string) (model.Snapshot, error) {
+func readInitialState(ctx context.Context, path string) (statefile.State, error) {
 	const (
 		startupWait = 3 * time.Second
 		retryEvery  = 100 * time.Millisecond
 	)
 
-	snapshot, err := statefile.Read(path)
+	state, err := statefile.ReadState(path)
 	if err == nil {
-		return snapshot, nil
+		return state, nil
 	}
 	lastErr := err
 
@@ -128,33 +128,48 @@ func readInitialState(ctx context.Context, path string) (model.Snapshot, error) 
 	for {
 		select {
 		case <-ctx.Done():
-			return model.Snapshot{}, ctx.Err()
+			return statefile.State{}, ctx.Err()
 		case <-timer.C:
-			return model.Snapshot{}, lastErr
+			return statefile.State{}, lastErr
 		case <-ticker.C:
-			snapshot, err = statefile.Read(path)
+			state, err = statefile.ReadState(path)
 			if err == nil {
-				return snapshot, nil
+				return state, nil
 			}
 			lastErr = err
 		}
 	}
 }
 
+func applyStateFreshness(snapshot *model.Snapshot, writtenAt time.Time, interval time.Duration) {
+	age := time.Duration(0)
+	if !writtenAt.IsZero() {
+		age = time.Since(writtenAt)
+		if age < 0 {
+			age = 0
+		}
+	}
+	snapshot.StateAge = age
+	snapshot.StateStale = writtenAt.IsZero() || age > 4*interval
+}
+
 func runClient(ctx context.Context, cfg app.Config) {
-	snapshot, err := readInitialState(ctx, cfg.StateFile)
+	state, err := readInitialState(ctx, cfg.StateFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "nasmon: не удалось прочитать %s: %v\n", cfg.StateFile, err)
 		fmt.Fprintln(os.Stderr, "запусти nasmond или используй nasmon --standalone")
 		os.Exit(1)
 	}
 
+	snapshot := state.Snapshot
+	lastWrittenAt := state.WrittenAt
 	renderer := tui.Renderer{Config: cfg}
 	clientStartedAt := time.Now()
 	sortMode := tui.DockerSortDefault
 	lastFrame := ""
 	draw := func(s model.Snapshot) {
 		s.StartedAt = clientStartedAt
+		applyStateFreshness(&s, lastWrittenAt, cfg.MainInterval)
 		tui.DecorateDiskHealth(&s)
 		rows, cols := tui.Size()
 		lastFrame = renderer.RenderInteractive(s, rows, cols, sortMode)
@@ -181,8 +196,9 @@ func runClient(ctx context.Context, cfg app.Config) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if next, readErr := statefile.Read(cfg.StateFile); readErr == nil {
-				snapshot = next
+			if next, readErr := statefile.ReadState(cfg.StateFile); readErr == nil {
+				snapshot = next.Snapshot
+				lastWrittenAt = next.WrittenAt
 			}
 			draw(snapshot)
 		case <-winch:
