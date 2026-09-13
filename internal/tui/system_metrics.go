@@ -22,21 +22,6 @@ func metricBar(p, w int) string {
 	return rep("█", filled) + rep("░", w-filled)
 }
 
-func nthRuneIndex(s string, target rune, want int) int {
-	seen := 0
-	idx := 0
-	for _, r := range s {
-		if r == target {
-			seen++
-			if seen == want {
-				return idx
-			}
-		}
-		idx++
-	}
-	return -1
-}
-
 // padANSI left-aligns a styled value inside a fixed-width column. The column
 // always starts exactly one cell after the progress bar, so all metric suffixes
 // begin at the same position while the overall row width remains stable.
@@ -44,10 +29,10 @@ func padANSI(s string, w int) string {
 	if w <= 0 {
 		return ""
 	}
-	if visibleRunes(s) > w {
-		return truncANSI(s, w)
+	if cellWidth(s) > w {
+		return truncateCells(s, w)
 	}
-	return s + rep(" ", w-visibleRunes(s))
+	return s + rep(" ", w-cellWidth(s))
 }
 
 func gpuMetric(usage *int) (int, string, string) {
@@ -90,11 +75,8 @@ func systemMetricRows(s model.Snapshot, targetWidth int, landscape bool) []strin
 		labels = []string{"CPU", "GPU", "RAM", "ZRAM"}
 	}
 
-	// All rows share the same fixed prefix and suffix-column width. On a very
-	// narrow terminal shrink the suffix column for every row together, never
-	// independently, so the progress bars remain aligned.
-	prefixCells := visibleRunes(lead) + labelW + 1 + 5 + 2 + 4
-	maxSuffix := targetWidth - prefixCells - 2 - 1 - 4 // brackets, gap, min bar
+	prefixCells := cellWidth(lead) + labelW + 1 + 5 + 2 + 4
+	maxSuffix := targetWidth - prefixCells - 2 - 1 - 4
 	if suffixW > maxSuffix {
 		suffixW = maxSuffix
 	}
@@ -106,7 +88,7 @@ func systemMetricRows(s model.Snapshot, targetWidth int, landscape bool) []strin
 		prefix := lead + white + fmt.Sprintf("%-*s", labelW, label) + reset + " " +
 			tempStyle + fmt.Sprintf("%-5s", tempText) + reset + "  " +
 			pctStyle + fmt.Sprintf("%-4s", pctText) + reset + gray
-		barW := targetWidth - visibleRunes(prefix) - 2 - 1 - suffixW
+		barW := targetWidth - cellWidth(prefix) - 2 - 1 - suffixW
 		if barW < 1 {
 			barW = 1
 		}
