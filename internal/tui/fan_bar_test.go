@@ -11,7 +11,7 @@ import (
 
 func metricLine(out, label string) string {
 	for _, raw := range strings.Split(out, "\n") {
-		plain := plainTerminalLine(raw)
+		plain := stripANSI(raw)
 		if strings.Contains(plain, label) && strings.Contains(plain, "[") && strings.Contains(plain, "]") {
 			return plain
 		}
@@ -20,12 +20,29 @@ func metricLine(out, label string) string {
 }
 
 func progressWidth(line string) int {
-	open := runeIndex(line, "[")
-	close := runeIndex(line, "]")
+	open := cellIndex(line, "[")
+	close := cellIndex(line, "]")
 	if open < 0 || close <= open {
 		return 0
 	}
 	return close - open - 1
+}
+
+func nthCellIndex(s, needle string, want int) int {
+	plain := stripANSI(s)
+	from := 0
+	for n := 1; n <= want; n++ {
+		i := strings.Index(plain[from:], needle)
+		if i < 0 {
+			return -1
+		}
+		from += i
+		if n == want {
+			return cellWidth(plain[:from])
+		}
+		from += len(needle)
+	}
+	return -1
 }
 
 func assertMetricGridAligned(t *testing.T, out string, labels []string) {
@@ -36,9 +53,9 @@ func assertMetricGridAligned(t *testing.T, out string, labels []string) {
 		if line == "" {
 			t.Fatalf("%s metric line missing", label)
 		}
-		open := runeIndex(line, "[")
-		close := runeIndex(line, "]")
-		suffix := close + 2 // closing bracket, exactly one blank, then suffix column
+		open := cellIndex(line, "[")
+		close := cellIndex(line, "]")
+		suffix := close + 2
 		if wantOpen < 0 {
 			wantOpen, wantClose, wantSuffix = open, close, suffix
 			continue
@@ -82,7 +99,7 @@ func TestSystemBarsUseAvailableRegularWidth(t *testing.T) {
 		if line == "" {
 			t.Fatalf("%s line missing", label)
 		}
-		if got := len([]rune(line)); got != 59 {
+		if got := cellWidth(line); got != 59 {
 			t.Fatalf("%s line width = %d, want 59 (one cell before 60-col edge): %q", label, got, line)
 		}
 	}
@@ -114,7 +131,7 @@ func TestSystemBarsKeepLandscapeSystemBorderAligned(t *testing.T) {
 		if line == "" {
 			t.Fatalf("%s landscape line missing", label)
 		}
-		border := nthRuneIndex(line, '│', 2)
+		border := nthCellIndex(line, "│", 2)
 		if border < 2 {
 			t.Fatalf("%s second border missing: %q", label, line)
 		}
