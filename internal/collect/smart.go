@@ -3,7 +3,6 @@ package collect
 import (
 	"bufio"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -113,9 +112,9 @@ func smartctlPermissionError(text string) bool {
 }
 
 func runSmartctl(args []string) (string, error) {
-	out, err := exec.Command("smartctl", args...).CombinedOutput()
+	out, err := commandCombinedOutput("smartctl", args...)
 	if err != nil && smartctlPermissionError(string(out)) {
-		out, err = exec.Command("sudo", append([]string{"-n", "smartctl"}, args...)...).CombinedOutput()
+		out, err = commandCombinedOutput("sudo", append([]string{"-n", "smartctl"}, args...)...)
 	}
 	return string(out), err
 }
@@ -166,12 +165,12 @@ func clearDiskPowerRetryBackoff(dev string) {
 
 func diskPowerState(dev string) (bool, bool) {
 	args := []string{"-C", "/dev/" + dev}
-	out, err := exec.Command("hdparm", args...).CombinedOutput()
+	out, err := commandCombinedOutput("hdparm", args...)
 	if err != nil && hdparmPermissionError(string(out)) {
 		if !diskPowerRetryAllowed(dev) {
 			return false, false
 		}
-		out, err = exec.Command("sudo", "-n", "hdparm", "-C", "/dev/"+dev).CombinedOutput()
+		out, err = commandCombinedOutput("sudo", "-n", "hdparm", "-C", "/dev/"+dev)
 		if err != nil && hdparmSudoUnavailable(string(out)) {
 			setDiskPowerRetryBackoff(dev)
 			return false, false
@@ -242,7 +241,7 @@ func parseTemp(text string) string {
 		if strings.Contains(ln, "Temperature_Celsius") || strings.Contains(ln, "Temperature_Case") || strings.Contains(ln, "Airflow_Temperature_Cel") || strings.Contains(ln, "Temperature_Internal") {
 			p := strings.Fields(ln)
 			if len(p) >= 10 {
-				if _, e := strconv.Atoi(p[9]); e == nil {
+				if _, e := strconv.Atoi(p[9], 10); e == nil {
 					return p[9] + "°C"
 				}
 			}
