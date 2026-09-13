@@ -182,11 +182,15 @@ func runClient(ctx context.Context, cfg app.Config) {
 	lastWrittenAt := state.WrittenAt
 	renderer := tui.Renderer{Config: cfg}
 	clientStartedAt := time.Now()
+	freshnessInterval := cfg.MainInterval
+	if cfg.StateInterval > freshnessInterval {
+		freshnessInterval = cfg.StateInterval
+	}
 	sortMode := tui.DockerSortDefault
 	lastFrame := ""
 	draw := func(s model.Snapshot) {
 		s.StartedAt = clientStartedAt
-		applyStateFreshness(&s, lastWrittenAt, cfg.MainInterval)
+		applyStateFreshness(&s, lastWrittenAt, freshnessInterval)
 		rows, cols := tui.Size()
 		lastFrame = renderer.RenderInteractive(s, rows, cols, sortMode)
 		tui.Draw(lastFrame)
