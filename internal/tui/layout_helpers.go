@@ -1,15 +1,11 @@
 package tui
 
-import (
-	"unicode/utf8"
-
-	"nasmon/internal/model"
-)
+import "nasmon/internal/model"
 
 func healthDeviceWidth(health []model.DiskHealth) int {
 	width := 3
 	for _, h := range health {
-		if n := utf8.RuneCountInString(h.Device); n > width {
+		if n := cellWidth(h.Device); n > width {
 			width = n
 		}
 	}

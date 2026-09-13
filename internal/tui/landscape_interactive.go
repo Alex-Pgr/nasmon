@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"nasmon/internal/model"
 )
@@ -20,13 +19,13 @@ func landscapeSystemRows(s model.Snapshot) int {
 func landscapeDiskWidths(usage []model.DiskUsage) (pathW, usedW, totalW int) {
 	pathW, usedW, totalW = 1, 1, 1
 	for _, d := range usage {
-		if n := utf8.RuneCountInString(d.Path); n > pathW {
+		if n := cellWidth(d.Path); n > pathW {
 			pathW = n
 		}
-		if n := utf8.RuneCountInString(humanBytes(d.UsedBytes)); n > usedW {
+		if n := cellWidth(humanBytes(d.UsedBytes)); n > usedW {
 			usedW = n
 		}
-		if n := utf8.RuneCountInString(humanBytes(d.TotalBytes)); n > totalW {
+		if n := cellWidth(humanBytes(d.TotalBytes)); n > totalW {
 			totalW = n
 		}
 	}
@@ -43,7 +42,7 @@ func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSort
 	}
 
 	upperRows := landscapeSystemRows(s)
-	if dockerRows := 1 + len(s.Containers); dockerRows > upperRows { // +1 for column header
+	if dockerRows := 1 + len(s.Containers); dockerRows > upperRows {
 		upperRows = dockerRows
 	}
 	fullRows := 8 + upperRows + lowerRows
@@ -52,8 +51,6 @@ func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSort
 	copySnap := s
 	copySnap.Containers = append([]model.Container(nil), s.Containers...)
 	if compactHeader && rows > 0 {
-		// Compact landscape has one global header row, two rows of box borders,
-		// one spacer and two lower-box borders. Docker also needs one table header.
 		availableContainers := rows - 7 - lowerRows
 		if availableContainers < 0 {
 			availableContainers = 0
@@ -88,9 +85,6 @@ func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode) 
 	lw := (w - gap) / 2
 	rw := w - gap - lw
 
-	// makeBox has an inner width of lw-2. Metric rows are one cell shorter so
-	// the fixed suffix column is followed by exactly one blank before the System
-	// border. CPU/GPU/RAM/ZRAM all share the same bar start/end and suffix start.
 	system := buildSystemRows(s, lw-3, true)
 	docker := buildDockerRows(s.Containers, rw-2, true, mode)
 

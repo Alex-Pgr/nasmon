@@ -25,7 +25,10 @@ func (r Renderer) renderRegular(s model.Snapshot, w, rows int, mode DockerSortMo
 
 	var b strings.Builder
 	n := 0
-	addn := func(x string) { add(&b, x); n++ }
+	addn := func(x string) {
+		add(&b, truncateCells(x, w))
+		n++
+	}
 	if compactHeader {
 		addn(cyan + center(fmt.Sprintf("NAS Health Monitor %s", r.Config.MainInterval), w) + reset)
 	} else {

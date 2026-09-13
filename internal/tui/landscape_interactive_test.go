@@ -37,11 +37,11 @@ func TestLandscapeInteractiveDockerHeaderIsClickable(t *testing.T) {
 
 	lines := strings.Split(out, "\n")
 	for i, raw := range lines {
-		line := plainTerminalLine(raw)
+		line := stripANSI(raw)
 		if !strings.Contains(line, "NAMES") || !strings.Contains(line, "RAM") || !strings.Contains(line, "STATUS") {
 			continue
 		}
-		ramX := runeIndex(line, "RAM") + 1
+		ramX := cellIndex(line, "RAM") + 1
 		mode, changed := DockerSortForClick(out, ramX, i+1, DockerSortDefault)
 		if !changed || mode != DockerSortRAMDesc {
 			t.Fatalf("landscape RAM click = %v, changed=%v", mode, changed)
@@ -62,9 +62,9 @@ func TestLandscapeInteractiveRowsKeepSameWidth(t *testing.T) {
 
 	wantWidth := 118
 	for _, raw := range strings.Split(out, "\n") {
-		line := plainTerminalLine(raw)
+		line := stripANSI(raw)
 		if strings.Contains(line, "NAMES↑") || strings.Contains(line, "alpha") || strings.Contains(line, "beta") {
-			if got := len([]rune(line)); got != wantWidth {
+			if got := cellWidth(line); got != wantWidth {
 				t.Fatalf("landscape row width = %d, want %d: %q", got, wantWidth, line)
 			}
 		}
@@ -106,14 +106,14 @@ func TestLandscapeDiskUsageColumnsAlign(t *testing.T) {
 
 	var slashCols, pctCols []int
 	for _, raw := range strings.Split(out, "\n") {
-		line := plainTerminalLine(raw)
+		line := stripANSI(raw)
 		switch {
 		case strings.Contains(line, "9.0G/40.0G"):
-			slashCols = append(slashCols, runeIndex(line, "/40.0G"))
-			pctCols = append(pctCols, runeIndex(line, "23%"))
+			slashCols = append(slashCols, cellIndex(line, "/40.0G"))
+			pctCols = append(pctCols, cellIndex(line, "23%"))
 		case strings.Contains(line, "123.0G/468.0G"):
-			slashCols = append(slashCols, runeIndex(line, "/468.0G"))
-			pctCols = append(pctCols, runeIndex(line, "26%"))
+			slashCols = append(slashCols, cellIndex(line, "/468.0G"))
+			pctCols = append(pctCols, cellIndex(line, "26%"))
 		}
 	}
 	if len(slashCols) != 2 || len(pctCols) != 2 {
