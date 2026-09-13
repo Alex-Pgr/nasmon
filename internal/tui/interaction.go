@@ -108,6 +108,9 @@ func (r Renderer) DockerPageSize(s model.Snapshot, rows, cols int) int {
 	if !landscape || effectiveRows <= 0 {
 		return len(s.Containers)
 	}
+	if effectiveRows <= ultraCompactMaxRows {
+		return ultraCompactDockerPageSize(len(s.Containers), effectiveRows)
+	}
 	healthRows := len(buildHealthRows(s, true)) + len(r.collectorWarningRows(s, true))
 	lowerRows := len(s.DiskUsage)
 	if healthRows > lowerRows {
@@ -150,6 +153,9 @@ func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode Docke
 
 func (r Renderer) RenderInteractiveView(s model.Snapshot, rows, cols int, mode DockerSortMode, dockerOffset int) string {
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
+	if landscape && effectiveRows <= ultraCompactMaxRows {
+		return r.renderUltraCompact(s, w, effectiveRows, mode, dockerOffset)
+	}
 	if landscape {
 		return r.renderLandscape(s, w, effectiveRows, mode, dockerOffset)
 	}
