@@ -43,7 +43,7 @@ func TestRenderShowsCollectorProblems(t *testing.T) {
 	}}
 	s := model.Snapshot{
 		DockerCollector: model.CollectorStatus{Enabled: true, LastAttempt: now},
-		SMARTCollector: model.CollectorStatus{Enabled: true, LastAttempt: now.Add(-5 * time.Hour), LastSuccess: now.Add(-5 * time.Hour)},
+		SMARTCollector:  model.CollectorStatus{Enabled: true, LastAttempt: now.Add(-5 * time.Hour), LastSuccess: now.Add(-5 * time.Hour)},
 	}
 	plain := stripANSI(r.RenderInteractive(s, 60, 100, DockerSortDefault))
 	if !strings.Contains(plain, "Docker Services [UNAVAILABLE]") {
