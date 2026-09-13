@@ -106,15 +106,15 @@ func effectiveLayout(r Renderer, rows, cols int) (int, int, bool) {
 	return rows, draw, rows <= 30 && cols >= 80
 }
 
-// RenderInteractive is the runtime entry point. Both layouts now compose
+// RenderInteractive is the single TUI render entry point. Both layouts compose
 // section rows directly; neither path parses or rewrites an already-rendered
 // ANSI frame.
 func (r Renderer) RenderInteractive(s model.Snapshot, rows, cols int, mode DockerSortMode) string {
 	effectiveRows, w, landscape := effectiveLayout(r, rows, cols)
 	if landscape {
-		return r.renderLandscapeInteractiveAdaptive(s, w, effectiveRows, mode)
+		return r.renderLandscape(s, w, effectiveRows, mode)
 	}
-	return r.renderRegularInteractiveAdaptive(s, w, effectiveRows, mode)
+	return r.renderRegular(s, w, effectiveRows, mode)
 }
 
 func terminalFrameLine(content string) string {
@@ -131,7 +131,6 @@ func plainTerminalLine(s string) string {
 				i++
 				if c >= '@' && c <= '~' {
 					break
-				}
 			}
 			continue
 		}
