@@ -20,7 +20,6 @@ func stripANSI(s string) string {
 				if c >= '@' && c <= '~' {
 					break
 				}
-			}
 			continue
 		}
 
@@ -73,7 +72,6 @@ func truncateCells(s string, width int) string {
 				if c >= '@' && c <= '~' {
 					break
 			}
-			}
 			out.WriteString(s[start:i])
 			continue
 		}
@@ -97,6 +95,24 @@ func truncateCells(s string, width int) string {
 	out.WriteRune('…')
 	out.WriteString(reset)
 	return out.String()
+}
+
+func padRightCells(s string, width int) string {
+	s = truncateCells(s, width)
+	padding := width - cellWidth(s)
+	if padding < 0 {
+		padding = 0
+	}
+	return s + strings.Repeat(" ", padding)
+}
+
+func padLeftCells(s string, width int) string {
+	s = truncateCells(s, width)
+	padding := width - cellWidth(s)
+	if padding < 0 {
+		padding = 0
+	}
+	return strings.Repeat(" ", padding) + s
 }
 
 // cellIndex returns the zero-based display-cell index of the first visible
