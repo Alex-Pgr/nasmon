@@ -83,19 +83,24 @@ func statFS(path string) (used, total uint64, pct int, ok bool) {
 	return
 }
 
-func physicalBlock(source string) string {
+func physicalBlockAt(sysBlockRoot, source string) string {
 	if !strings.HasPrefix(source, "/dev/") {
 		return ""
 	}
 	dev := filepath.Base(source)
-	link, err := filepath.EvalSymlinks(filepath.Join("/sys/class/block", dev))
+	entry := filepath.Join(sysBlockRoot, dev)
+	link, err := filepath.EvalSymlinks(entry)
 	if err != nil {
 		return dev
 	}
-	if _, err := os.Stat(filepath.Join("/sys/class/block", dev, "partition")); err == nil {
+	if _, err := os.Stat(filepath.Join(entry, "partition")); err == nil {
 		return filepath.Base(filepath.Dir(link))
 	}
 	return dev
+}
+
+func physicalBlock(source string) string {
+	return physicalBlockAt("/sys/class/block", source)
 }
 
 func discoverNVMeBlockDevices() []string {
@@ -116,6 +121,13 @@ func discoverNVMeBlockDevices() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func smartCapableCandidate(dev string) bool {
+	// Linux MMC devices (microSD/eMMC) do not implement ATA/NVMe SMART and
+	// smartctl normally reports them as an unknown device type. Keep them in
+	// disk usage/identity/I/O, but do not mark the SMART collector unhealthy.
+	return !strings.HasPrefix(dev, "mmcblk")
 }
 
 // autoDiskMount selects real block-device mounts while excluding pseudo and
@@ -160,6 +172,7 @@ type DiskCollector struct {
 	storagePath         string
 	devices             []string
 	healthDevices       []string
+	smartDevices        []string
 	prevRead, prevWrite uint64
 	prevAt              time.Time
 }
@@ -176,6 +189,11 @@ func (d *DiskCollector) HealthDevices() []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]string(nil), d.healthDevices...)
+}
+func (d *DiskCollector) SMARTDevices() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]string(nil), d.smartDevices...)
 }
 
 func (d *DiskCollector) CollectUsage(store *model.Store) {
@@ -251,9 +269,16 @@ func (d *DiskCollector) CollectUsage(store *model.Store) {
 		}
 	}
 	sort.Strings(healthDevices)
+	smartDevices := make([]string, 0, len(healthDevices))
+	for _, dev := range healthDevices {
+		if smartCapableCandidate(dev) {
+			smartDevices = append(smartDevices, dev)
+		}
+	}
 	d.mu.Lock()
 	d.devices = devices
 	d.healthDevices = healthDevices
+	d.smartDevices = smartDevices
 	d.mu.Unlock()
 	store.Update(func(s *model.Snapshot) {
 		s.DiskUsage = usage
