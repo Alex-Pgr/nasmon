@@ -33,8 +33,10 @@ func landscapeDiskWidths(usage []model.DiskUsage) (pathW, usedW, totalW int) {
 	return
 }
 
-// renderLandscape selects the visible Docker subset before sorting, then lays
-// out the already-built section rows without post-render ANSI rewriting.
+// renderLandscape selects the visible Docker subset before sorting and passes
+// the chosen header mode into the canonical landscape composer. Compact mode
+// is therefore composed directly rather than rewriting an already-rendered
+// ANSI frame.
 func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSortMode) string {
 	healthRows := len(buildHealthRows(s, true)) + len(r.collectorWarningRows(s, true))
 	lowerRows := len(s.DiskUsage)
@@ -62,27 +64,20 @@ func (r Renderer) renderLandscape(s model.Snapshot, w, rows int, mode DockerSort
 	}
 	copySnap.Containers = sortDockerContainers(copySnap.Containers, s.Containers, mode)
 
-	out := r.layoutLandscape(copySnap, w, mode)
-	if !compactHeader {
-		return out
-	}
-
-	parts := strings.SplitAfter(out, "\n")
-	if len(parts) < 3 {
-		return out
-	}
-	var head strings.Builder
-	title := fmt.Sprintf("NAS Health Monitor %s", r.Config.MainInterval) + staleSuffix(s)
-	add(&head, cyan+center(title, w)+reset)
-	return head.String() + strings.Join(parts[3:], "")
+	return r.layoutLandscape(copySnap, w, mode, compactHeader)
 }
 
-func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode) string {
+func (r Renderer) layoutLandscape(s model.Snapshot, w int, mode DockerSortMode, compactHeader bool) string {
 	var b strings.Builder
-	add(&b, cyan+full(w)+reset)
-	title := fmt.Sprintf("NAS Health Monitor • %s • %s", time.Now().Format("15:04:05"), r.Config.MainInterval) + staleSuffix(s)
-	add(&b, white+center(title, w)+reset)
-	add(&b, cyan+full(w)+reset)
+	if compactHeader {
+		title := fmt.Sprintf("NAS Health Monitor %s", r.Config.MainInterval) + staleSuffix(s)
+		add(&b, cyan+center(title, w)+reset)
+	} else {
+		add(&b, cyan+full(w)+reset)
+		title := fmt.Sprintf("NAS Health Monitor • %s • %s", time.Now().Format("15:04:05"), r.Config.MainInterval) + staleSuffix(s)
+		add(&b, white+center(title, w)+reset)
+		add(&b, cyan+full(w)+reset)
+	}
 
 	const gap = 2
 	lw := (w - gap) / 2
