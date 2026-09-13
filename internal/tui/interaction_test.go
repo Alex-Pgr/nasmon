@@ -126,10 +126,10 @@ func TestClampDockerOffset(t *testing.T) {
 		t.Fatalf("offset = %d, want 15", got)
 	}
 	if got := ClampDockerOffset(-3, 20, 5); got != 0 {
-		t.Fatalf("negative offset = %d", got)
+		t.Fatalf("negative offset = %d, want 0", got)
 	}
 	if got := ClampDockerOffset(4, 4, 4); got != 0 {
-		t.Fatalf("full-page offset = %d", got)
+		t.Fatalf("full-page offset = %d, want 0", got)
 	}
 }
 
@@ -140,7 +140,7 @@ func TestLandscapeDockerViewportSortsBeforeSlicing(t *testing.T) {
 		{Name: "a", MemoryBytes: 100},
 		{Name: "b", MemoryBytes: 200},
 	}}
-	out := r.RenderInteractiveView(s, 10, 100, DockerSortNameAsc, 1)
+	out := r.RenderInteractiveView(s, 7, 100, DockerSortNameAsc, 1)
 	if strings.Contains(out, " a ") || !strings.Contains(out, "b") || !strings.Contains(out, "c") {
 		t.Fatalf("viewport did not slice the globally sorted list: %q", stripANSI(out))
 	}
