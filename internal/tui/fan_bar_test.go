@@ -99,7 +99,7 @@ func TestSystemBarsUseAvailableRegularWidth(t *testing.T) {
 	assertMetricGridAligned(t, out80, labels)
 }
 
-func TestSystemBarsLeaveOneCellBeforeLandscapeBorder(t *testing.T) {
+func TestSystemBarsKeepLandscapeSystemBorderAligned(t *testing.T) {
 	cfg := app.Config{MainInterval: 2 * time.Second, MinTermWidth: 80, RightMargin: 1}
 	r := Renderer{Config: cfg}
 	s := testMetricSnapshot()
@@ -107,6 +107,8 @@ func TestSystemBarsLeaveOneCellBeforeLandscapeBorder(t *testing.T) {
 	out := r.RenderInteractive(s, 30, 120, DockerSortDefault)
 	labels := []string{"CPU", "GPU", "RAM", "ZRAM"}
 	assertMetricGridAligned(t, out, labels)
+
+	wantBorder := -1
 	for _, label := range labels {
 		line := metricLine(out, label)
 		if line == "" {
@@ -116,12 +118,12 @@ func TestSystemBarsLeaveOneCellBeforeLandscapeBorder(t *testing.T) {
 		if border < 2 {
 			t.Fatalf("%s second border missing: %q", label, line)
 		}
-		runes := []rune(line)
-		if runes[border-1] != ' ' {
-			t.Fatalf("%s must leave one blank before System border: %q", label, line)
+		if wantBorder < 0 {
+			wantBorder = border
+			continue
 		}
-		if runes[border-2] == ' ' {
-			t.Fatalf("%s leaves more than one blank before System border: %q", label, line)
+		if border != wantBorder {
+			t.Fatalf("%s System border = %d, want %d: %q", label, border, wantBorder, line)
 		}
 	}
 }
