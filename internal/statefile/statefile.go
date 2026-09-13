@@ -19,6 +19,11 @@ type stateFile struct {
 	Snapshot  model.Snapshot `json:"snapshot"`
 }
 
+type State struct {
+	WrittenAt time.Time
+	Snapshot  model.Snapshot
+}
+
 func ensureDir(path string) (string, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -77,19 +82,27 @@ func WriteAtomic(path string, snapshot model.Snapshot) error {
 	return os.Rename(tmpName, path)
 }
 
-func Read(path string) (model.Snapshot, error) {
+func ReadState(path string) (State, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return model.Snapshot{}, err
+		return State{}, err
 	}
 	defer f.Close()
 
 	var state stateFile
 	if err := json.NewDecoder(f).Decode(&state); err != nil {
-		return model.Snapshot{}, err
+		return State{}, err
 	}
 	if state.Version != Version {
-		return model.Snapshot{}, fmt.Errorf("unsupported state version %d (expected %d)", state.Version, Version)
+		return State{}, fmt.Errorf("unsupported state version %d (expected %d)", state.Version, Version)
+	}
+	return State{WrittenAt: state.WrittenAt, Snapshot: state.Snapshot}, nil
+}
+
+func Read(path string) (model.Snapshot, error) {
+	state, err := ReadState(path)
+	if err != nil {
+		return model.Snapshot{}, err
 	}
 	return state.Snapshot, nil
 }
