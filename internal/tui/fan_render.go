@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 
 	"nasmon/internal/model"
 )
@@ -131,33 +130,4 @@ func systemMetricRows(s model.Snapshot, targetWidth int, landscape bool) []strin
 		rows = append(rows, makeRow(labels[3], "", reset, fmt.Sprintf("%d%%", s.ZRAMPercent), pctColor(s.ZRAMPercent, "mem"), s.ZRAMPercent, zramSuffix))
 	}
 	return rows
-}
-
-// Regular mode is rendered as a single column. Replace the four System metric
-// rows as a group so CPU/GPU/RAM/ZRAM share one grid: identical bar start/end
-// and an identical one-cell gap before the fixed suffix column.
-func decorateRegularSystemBars(frame string, width int, s model.Snapshot) string {
-	metrics := systemMetricRows(s, width, false)
-	byLabel := map[string]string{}
-	for _, row := range metrics {
-		plain := plainTerminalLine(row)
-		for _, label := range []string{"CPU:", "GPU:", "RAM:", "ZRAM:"} {
-			if strings.Contains(plain, "│ "+label) {
-				byLabel[label] = row
-				break
-			}
-		}
-	}
-
-	lines := strings.SplitAfter(frame, "\n")
-	for i, line := range lines {
-		plain := plainTerminalLine(line)
-		for label, row := range byLabel {
-			if strings.Contains(plain, "│ "+label) {
-				lines[i] = terminalFrameLine(row)
-				break
-			}
-		}
-	}
-	return strings.Join(lines, "")
 }
