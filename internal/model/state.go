@@ -42,6 +42,12 @@ type Container struct {
 	MemoryBytes uint64
 }
 
+type CollectorStatus struct {
+	Enabled     bool
+	LastAttempt time.Time
+	LastSuccess time.Time
+}
+
 type Snapshot struct {
 	UpdatedAt time.Time
 	StartedAt time.Time
@@ -91,6 +97,12 @@ type Snapshot struct {
 	StoragePercent    int
 
 	FailedUnits int
+
+	DockerCollector   CollectorStatus
+	GPUCollector      CollectorStatus
+	DiskTempCollector CollectorStatus
+	SMARTCollector    CollectorStatus
+	SystemdCollector  CollectorStatus
 
 	// Client-only metadata. These fields describe freshness of the daemon state
 	// file and must never be persisted back into it.
