@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 type diskIdentityValue struct {
