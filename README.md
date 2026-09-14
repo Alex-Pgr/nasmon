@@ -203,7 +203,7 @@ Docker is read through `/var/run/docker.sock`. To show Docker data, the user run
 
 ## Installation and upgrades
 
-Run the installer as your normal login user from the repository root:
+Run the installer as your normal login user from the repository root. Do not run it from a persistent root shell unless you intentionally want `nasmond` to run as root:
 
 ```bash
 ./install.sh
@@ -248,3 +248,11 @@ nasmon doctor
 systemctl status nasmond --no-pager
 cat /run/nasmon/state.json | jq '.version, .written_at'
 ```
+
+## Security
+
+Please report suspected security vulnerabilities privately. See [SECURITY.md](SECURITY.md) for the reporting policy and scope.
+
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE).
