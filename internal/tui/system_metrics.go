@@ -3,7 +3,7 @@ package tui
 import (
 	"fmt"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 func fanRPMText(rpm *int) string {
