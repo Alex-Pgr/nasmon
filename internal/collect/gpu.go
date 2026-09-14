@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 var gpuTempRE = regexp.MustCompile(`GPU Temperature:\s*([0-9]+(?:\.[0-9]+)?)`)
