@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 func TestApplyStateFreshness(t *testing.T) {
