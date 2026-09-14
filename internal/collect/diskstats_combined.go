@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 type diskSectorCounters struct {
