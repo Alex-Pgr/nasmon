@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"nasmon/internal/app"
-	"nasmon/internal/statefile"
+	"github.com/Alex-Pgr/nas_monitoring/internal/app"
+	"github.com/Alex-Pgr/nas_monitoring/internal/statefile"
 )
 
 func publishUpdates(ctx context.Context, interval time.Duration, updates <-chan struct{}, publish func() error, report func(error)) {
