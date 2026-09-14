@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 func shortDiskID(device string) string {
