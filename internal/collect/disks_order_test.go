@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/model"
 )
 
 func TestSortDiskUsageUsesConfiguredPriorityThenAlphabetical(t *testing.T) {

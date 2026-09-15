@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/model"
 )
 
 func collectorIssue(status model.CollectorStatus, interval time.Duration) string {

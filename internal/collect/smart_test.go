@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/model"
 )
 
 const nvmeSMARTSample = `SMART overall-health self-assessment test result: PASSED

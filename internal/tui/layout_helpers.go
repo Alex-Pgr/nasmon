@@ -1,6 +1,6 @@
 package tui
 
-import "github.com/Alex-Pgr/nas_monitoring/internal/model"
+import "github.com/Alex-Pgr/nasmon/internal/model"
 
 func healthDeviceWidth(health []model.DiskHealth) int {
 	width := 3

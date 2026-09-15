@@ -95,8 +95,8 @@ Docker is optional and should only be installed if the host uses it.
 Install nasmon from the repository:
 
 ```bash
-git clone https://github.com/Alex-Pgr/nas_monitoring.git
-cd nas_monitoring
+git clone https://github.com/Alex-Pgr/nasmon.git
+cd nasmon
 ./install.sh
 ```
 

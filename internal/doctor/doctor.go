@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/app"
-	"github.com/Alex-Pgr/nas_monitoring/internal/statefile"
+	"github.com/Alex-Pgr/nasmon/internal/app"
+	"github.com/Alex-Pgr/nasmon/internal/statefile"
 )
 
 type Level string

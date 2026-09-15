@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/model"
 )
 
 func dockerMemoryLabel(b uint64) string {
