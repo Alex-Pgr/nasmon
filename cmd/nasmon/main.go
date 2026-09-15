@@ -33,11 +33,11 @@ func parseArgs(cfg *app.Config) (standalone bool, err error) {
 			os.Exit(0)
 		default:
 			if intervalSet {
-				return false, fmt.Errorf("лишний аргумент %q", arg)
+				return false, fmt.Errorf("unexpected argument %q", arg)
 			}
 			n, convErr := strconv.Atoi(arg)
 			if convErr != nil || n < 1 {
-				return false, fmt.Errorf("интервал должен быть числом >= 1")
+				return false, fmt.Errorf("refresh interval must be a number >= 1")
 			}
 			if n > 3600 {
 				n = 3600
@@ -216,8 +216,8 @@ func applyStateFreshness(snapshot *model.Snapshot, writtenAt time.Time, interval
 func runClient(ctx context.Context, cfg app.Config) {
 	state, err := readInitialState(ctx, cfg.StateFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "nasmon: не удалось прочитать %s: %v\n", cfg.StateFile, err)
-		fmt.Fprintln(os.Stderr, "запусти nasmond или используй nasmon --standalone")
+		fmt.Fprintf(os.Stderr, "nasmon: cannot read %s: %v\n", cfg.StateFile, err)
+		fmt.Fprintln(os.Stderr, "start nasmond or use nasmon --standalone")
 		os.Exit(1)
 	}
 
