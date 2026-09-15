@@ -1,6 +1,6 @@
 # nasmon
 
-Go rewrite of the Bash `check_health.sh` NAS monitor.
+Lightweight monitoring for core Linux server resources and Docker, with a terminal UI designed primarily for smartphone-sized screens.
 
 ## Architecture
 
