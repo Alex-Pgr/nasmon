@@ -1,6 +1,26 @@
 # nasmon
 
-Lightweight monitoring for core Linux server resources and Docker, with a terminal UI designed primarily for smartphone-sized screens.
+Lightweight Linux server and Docker monitor with a mobile-friendly terminal UI.
+
+## Quick Start
+
+```bash
+git clone https://github.com/Alex-Pgr/nasmon.git
+cd nasmon
+./install.sh
+nasmon
+```
+
+After installation, you can verify the host setup with:
+
+```bash
+nasmon doctor
+systemctl status nasmond --no-pager
+```
+
+## Screenshot
+
+<!-- Add a smartphone-terminal screenshot here -->
 
 ## Architecture
 
