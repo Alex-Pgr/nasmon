@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 func TestWriteAtomicReadRoundTrip(t *testing.T) {
@@ -64,8 +64,15 @@ func TestWriteAtomicReadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat state: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0644 {
-		t.Fatalf("state mode = %o, want 644", perm)
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Fatalf("state mode = %o, want 600", perm)
+	}
+	info, err = os.Stat(filepath.Dir(path))
+	if err != nil {
+		t.Fatalf("stat state directory: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0700 {
+		t.Fatalf("state directory mode = %o, want 700", perm)
 	}
 
 	data, err := os.ReadFile(path)
@@ -137,7 +144,7 @@ func TestWriteAtomicReplacesExistingSnapshot(t *testing.T) {
 
 func TestReadRejectsUnsupportedVersion(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
-	if err := os.WriteFile(path, []byte(`{"version":999,"snapshot":{}}`), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(`{"version":999,"snapshot":{}}`), 0600); err != nil {
 		t.Fatalf("write test state: %v", err)
 	}
 	_, err := Read(path)
@@ -156,6 +163,14 @@ func TestAcquireWriterLockIsExclusiveAndReleasable(t *testing.T) {
 		t.Fatalf("first lock: %v", err)
 	}
 	defer first.Close()
+
+	info, err := os.Stat(filepath.Join(filepath.Dir(path), "nasmond.lock"))
+	if err != nil {
+		t.Fatalf("stat lock: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Fatalf("lock mode = %o, want 600", perm)
+	}
 
 	second, err := AcquireWriterLock(path)
 	if err == nil {
