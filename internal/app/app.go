@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"nasmon/internal/collect"
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/collect"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 type App struct {

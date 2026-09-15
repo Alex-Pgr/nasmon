@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 const Version = 1

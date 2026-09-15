@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"nasmon/internal/app"
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/app"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 const (

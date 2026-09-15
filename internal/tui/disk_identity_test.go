@@ -3,7 +3,7 @@ package tui
 import (
 	"testing"
 
-	"nasmon/internal/model"
+	"github.com/Alex-Pgr/nas_monitoring/internal/model"
 )
 
 func TestShortDiskID(t *testing.T) {
