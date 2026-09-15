@@ -26,7 +26,7 @@ type State struct {
 
 func ensureDir(path string) (string, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", err
 	}
 	return dir, nil
@@ -41,7 +41,7 @@ func AcquireWriterLock(path string) (*os.File, error) {
 		return nil, err
 	}
 	lockPath := filepath.Join(dir, "nasmond.lock")
-	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0644)
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func WriteAtomic(path string, snapshot model.Snapshot) error {
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
 
-	if err := tmp.Chmod(0644); err != nil {
+	if err := tmp.Chmod(0600); err != nil {
 		tmp.Close()
 		return err
 	}
