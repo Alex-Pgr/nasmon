@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/app"
-	"github.com/Alex-Pgr/nas_monitoring/internal/doctor"
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
-	"github.com/Alex-Pgr/nas_monitoring/internal/statefile"
-	"github.com/Alex-Pgr/nas_monitoring/internal/tui"
+	"github.com/Alex-Pgr/nasmon/internal/app"
+	"github.com/Alex-Pgr/nasmon/internal/doctor"
+	"github.com/Alex-Pgr/nasmon/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/statefile"
+	"github.com/Alex-Pgr/nasmon/internal/tui"
 )
 
 func printUsage() {

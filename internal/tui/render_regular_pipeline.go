@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/model"
 )
 
 // renderRegular is the canonical regular layout. It sorts Docker rows before

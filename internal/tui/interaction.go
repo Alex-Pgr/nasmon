@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/model"
 )
 
 type DockerSortMode int

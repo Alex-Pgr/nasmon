@@ -1,6 +1,6 @@
 # nasmon
 
-Go rewrite of the Bash `check_health.sh` NAS monitor.
+Lightweight monitoring for core Linux server resources and Docker, with a terminal UI designed primarily for smartphone-sized screens.
 
 ## Architecture
 
@@ -95,8 +95,8 @@ Docker is optional and should only be installed if the host uses it.
 Install nasmon from the repository:
 
 ```bash
-git clone https://github.com/Alex-Pgr/nas_monitoring.git
-cd nas_monitoring
+git clone https://github.com/Alex-Pgr/nasmon.git
+cd nasmon
 ./install.sh
 ```
 

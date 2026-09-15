@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/model"
 )
 
 type mountInfo struct{ MountPoint, Source, FSType string }

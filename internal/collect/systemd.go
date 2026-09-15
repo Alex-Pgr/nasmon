@@ -3,7 +3,7 @@ package collect
 import (
 	"strings"
 
-	"github.com/Alex-Pgr/nas_monitoring/internal/model"
+	"github.com/Alex-Pgr/nasmon/internal/model"
 )
 
 func CollectSystemd(store *model.Store) bool {
