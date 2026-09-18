@@ -18,9 +18,21 @@ nasmon doctor
 systemctl status nasmond --no-pager
 ```
 
-## Screenshot
+## Screenshots
 
-<!-- Add a smartphone-terminal screenshot here -->
+<p align="center">
+  <img src="docs/screenshots/portrait.jpg" width="300" alt="nasmon portrait view on a smartphone">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/landscape.jpg" width="760" alt="nasmon landscape view on a smartphone">
+</p>
+
+### Compact mobile view
+
+<p align="center">
+  <img src="docs/screenshots/compact-mobile.jpg" width="300" alt="nasmon compact mobile view with terminal keyboard">
+</p>
 
 ## Architecture
 
