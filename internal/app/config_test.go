@@ -15,6 +15,7 @@ func clearConfigEnv(t *testing.T) {
 		"GPU_INFO_HELPER",
 		"STORAGE_PATH",
 		"NAS_STATE_FILE",
+		"DOCKER_SHOW_ONESHOT",
 		"DISK_PATHS",
 		"MAIN_INTERVAL",
 		"STATE_INTERVAL",
@@ -68,6 +69,9 @@ func TestDefaultConfigUsesPortableHostDefaults(t *testing.T) {
 	if cfg.SystemdInterval != 60*time.Second {
 		t.Fatalf("SystemdInterval = %s, want 60s", cfg.SystemdInterval)
 	}
+	if cfg.DockerShowOneShot {
+		t.Fatal("DockerShowOneShot = true, want false by default")
+	}
 }
 
 func TestDefaultConfigReadsHostOverrides(t *testing.T) {
@@ -76,6 +80,7 @@ func TestDefaultConfigReadsHostOverrides(t *testing.T) {
 	t.Setenv("GPU_INFO_HELPER", " /opt/bin/gpu-info ")
 	t.Setenv("STORAGE_PATH", " /srv/storage ")
 	t.Setenv("DISK_PATHS", " /, /srv/storage, , /mnt/archive ")
+	t.Setenv("DOCKER_SHOW_ONESHOT", "1")
 
 	cfg := DefaultConfig()
 	if cfg.Interface != "eno1" {
@@ -86,6 +91,9 @@ func TestDefaultConfigReadsHostOverrides(t *testing.T) {
 	}
 	if cfg.StoragePath != "/srv/storage" {
 		t.Fatalf("StoragePath = %q", cfg.StoragePath)
+	}
+	if !cfg.DockerShowOneShot {
+		t.Fatal("DockerShowOneShot = false, want true")
 	}
 	wantPaths := []string{"/", "/srv/storage", "/mnt/archive"}
 	if !reflect.DeepEqual(cfg.DiskPaths, wantPaths) {
@@ -99,6 +107,7 @@ func TestLoadConfigReadsFileAndEnvironmentWins(t *testing.T) {
 		"GPU_INFO_HELPER",
 		"STORAGE_PATH",
 		"NAS_STATE_FILE",
+		"DOCKER_SHOW_ONESHOT",
 		"DISK_PATHS",
 		"MAIN_INTERVAL",
 		"STATE_INTERVAL",

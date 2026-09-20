@@ -205,6 +205,7 @@ NAS_STATE_FILE=/run/nasmon/state.json
 MAIN_INTERVAL=2
 GPU_INTERVAL=10
 DOCKER_INTERVAL=30
+DOCKER_SHOW_ONESHOT=0
 DISK_LAYOUT_INTERVAL=15
 DISK_POWER_INTERVAL=60
 DISK_TEMP_INTERVAL=900
@@ -230,6 +231,8 @@ If a GPU helper is configured and requires privilege, grant only that helper the
 SMART behavior retains `smartctl -n standby,0`, so a sleeping HDD should not be spun up by the monitor. By default HDD temperature polling is every 15 minutes and SMART health polling is every hour while the drive is recently active. Systems without `smartctl` simply do not get SMART data.
 
 For rotational drives, `hdparm -C` is queried independently every 60 seconds by default. The last known temperature, SMART health, and R/P/U counters remain visible; a blue `SLEEP` suffix is added when the drive reports standby. If direct access fails, `nasmond` falls back to `sudo -n hdparm -C`. When non-interactive sudo reports that authorization is unavailable, further sudo attempts for that device are suppressed for 10 minutes before retrying. Systems without `hdparm` continue without power-state data.
+
+Successfully completed one-shot Docker jobs are hidden from the container list by default. This includes Compose one-off containers, Compose services referenced through `service_completed_successfully`, and containers explicitly labelled `nasmon.oneshot=true`. Running jobs and jobs that exit with a non-zero status remain visible. Set `DOCKER_SHOW_ONESHOT=1` to show completed one-shot jobs as well.
 
 Docker is read through `/var/run/docker.sock`. To show Docker data, the user running `nasmond` must have access to that socket, normally through membership in the `docker` group. Docker itself is not required for the daemon to start.
 
