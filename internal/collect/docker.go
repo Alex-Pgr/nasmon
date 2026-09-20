@@ -24,7 +24,8 @@ type dockerListItem struct {
 type dockerInspect struct {
 	RestartCount int `json:"RestartCount"`
 	State        struct {
-		Health *struct {
+		ExitCode int `json:"ExitCode"`
+		Health   *struct {
 			Status string `json:"Status"`
 		} `json:"Health"`
 	} `json:"State"`
@@ -79,26 +80,79 @@ func collectDockerMemory(c *http.Client, id string) (uint64, bool) {
 	return dockerMemoryUsage(st), true
 }
 
-func collectDockerInspect(c *http.Client, id string, co *model.Container) {
+func collectDockerInspect(c *http.Client, id string, co *model.Container) (int, bool) {
 	resp, err := c.Get("http://docker/containers/" + id + "/json")
 	if err != nil {
-		return
+		return 0, false
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return
+		return 0, false
 	}
 	var ins dockerInspect
 	if json.NewDecoder(resp.Body).Decode(&ins) != nil {
-		return
+		return 0, false
 	}
 	co.Restarts = ins.RestartCount
 	if ins.State.Health != nil {
 		co.Health = ins.State.Health.Status
 	}
+	return ins.State.ExitCode, true
 }
 
-func CollectDocker(store *model.Store) bool {
+func dockerComposeServiceKey(labels map[string]string) string {
+	project := strings.TrimSpace(labels["com.docker.compose.project"])
+	service := strings.TrimSpace(labels["com.docker.compose.service"])
+	if project == "" || service == "" {
+		return ""
+	}
+	return project + "\x00" + service
+}
+
+func dockerCompletedDependencyServices(items []dockerListItem) map[string]struct{} {
+	services := make(map[string]struct{})
+	for _, item := range items {
+		project := strings.TrimSpace(item.Labels["com.docker.compose.project"])
+		if project == "" {
+			continue
+		}
+		for _, raw := range strings.Split(item.Labels["com.docker.compose.depends_on"], ",") {
+			parts := strings.SplitN(strings.TrimSpace(raw), ":", 3)
+			if len(parts) < 2 || parts[1] != "service_completed_successfully" {
+				continue
+			}
+			service := strings.TrimSpace(parts[0])
+			if service != "" {
+				services[project+"\x00"+service] = struct{}{}
+			}
+		}
+	}
+	return services
+}
+
+func dockerIsOneShot(item dockerListItem, completedDependencies map[string]struct{}) bool {
+	if strings.EqualFold(strings.TrimSpace(item.Labels["com.docker.compose.oneoff"]), "true") {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(item.Labels["nasmon.oneshot"]), "true") {
+		return true
+	}
+	key := dockerComposeServiceKey(item.Labels)
+	if key == "" {
+		return false
+	}
+	_, ok := completedDependencies[key]
+	return ok
+}
+
+func shouldHideDockerContainer(showOneShot, oneShot bool, state string, inspectOK bool, exitCode int) bool {
+	if showOneShot || !oneShot {
+		return false
+	}
+	return state == "exited" && inspectOK && exitCode == 0
+}
+
+func CollectDocker(store *model.Store, showOneShot bool) bool {
 	c := dockerHTTPClient
 	resp, err := c.Get("http://docker/containers/json?all=1")
 	if err != nil {
@@ -118,7 +172,11 @@ func CollectDocker(store *model.Store) bool {
 	type collectedContainer struct {
 		container model.Container
 		group     string
+		oneShot   bool
+		exitCode  int
+		inspectOK bool
 	}
+	completedDependencies := dockerCompletedDependencyServices(items)
 	collected := make([]collectedContainer, 0, len(items))
 	for _, it := range items {
 		name := ""
@@ -132,6 +190,7 @@ func CollectDocker(store *model.Store) bool {
 		collected = append(collected, collectedContainer{
 			container: model.Container{ID: it.ID, Name: name, Status: it.Status, State: it.State},
 			group:     group,
+			oneShot:   dockerIsOneShot(it, completedDependencies),
 		})
 	}
 
@@ -148,7 +207,7 @@ func CollectDocker(store *model.Store) bool {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			co := &collected[i].container
-			collectDockerInspect(c, co.ID, co)
+			collected[i].exitCode, collected[i].inspectOK = collectDockerInspect(c, co.ID, co)
 			if co.State == "running" {
 				if memory, ok := collectDockerMemory(c, co.ID); ok {
 					co.MemoryBytes = memory
@@ -169,6 +228,15 @@ func CollectDocker(store *model.Store) bool {
 
 	out := make([]model.Container, 0, len(collected))
 	for _, item := range collected {
+		if shouldHideDockerContainer(
+			showOneShot,
+			item.oneShot,
+			item.container.State,
+			item.inspectOK,
+			item.exitCode,
+		) {
+			continue
+		}
 		out = append(out, item.container)
 	}
 	store.Update(func(s *model.Snapshot) { s.Containers = out })

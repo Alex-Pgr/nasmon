@@ -84,7 +84,7 @@ func (a *App) collectGPU() {
 }
 
 func (a *App) collectDocker() {
-	success := collect.CollectDocker(a.Store)
+	success := collect.CollectDocker(a.Store, a.Config.DockerShowOneShot)
 	recordCollector(a.Store, true, success, func(s *model.Snapshot) *model.CollectorStatus { return &s.DockerCollector })
 }
 

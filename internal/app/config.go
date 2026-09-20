@@ -25,16 +25,17 @@ type Config struct {
 	SystemdInterval   time.Duration
 	IPInterval        time.Duration
 
-	Interface    string
-	GPUHelper    string
-	StoragePath  string
-	StateFile    string
-	DiskPaths    []string
-	RightMargin  int
-	MinTermWidth int
-	OneShot      bool
-	ForceCols    int
-	ForceRows    int
+	Interface         string
+	GPUHelper         string
+	StoragePath       string
+	StateFile         string
+	DiskPaths         []string
+	RightMargin       int
+	MinTermWidth      int
+	OneShot           bool
+	ForceCols         int
+	ForceRows         int
+	DockerShowOneShot bool
 }
 
 type configLookup func(string) (string, bool)
@@ -139,6 +140,7 @@ func configFromLookup(lookup configLookup) Config {
 	iface, _ := lookup("NAS_INTERFACE")
 	helper, _ := lookup("GPU_INFO_HELPER")
 	oneShot, _ := lookup("NAS_MONITOR_ONESHOT")
+	dockerShowOneShot, _ := lookup("DOCKER_SHOW_ONESHOT")
 
 	return Config{
 		MainInterval:      envDuration(lookup, "MAIN_INTERVAL", 2*time.Second),
@@ -163,6 +165,7 @@ func configFromLookup(lookup configLookup) Config {
 		OneShot:           oneShot == "1",
 		ForceCols:         envInt(lookup, "NAS_FORCE_COLS"),
 		ForceRows:         envInt(lookup, "NAS_FORCE_ROWS"),
+		DockerShowOneShot: dockerShowOneShot == "1",
 	}
 }
 
